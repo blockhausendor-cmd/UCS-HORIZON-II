@@ -445,7 +445,13 @@
                     if (playerSession.role === 'master') return;
                     const sharedState = snapshot.val();
                     if (!sharedState) return;
-                    currentState = { ...currentState, ...sharedState, lootInputZone: null, doorInputZone: null };
+                    const localNavigation = {
+                        view: currentState.view,
+                        currentGlobalKey: currentState.currentGlobalKey,
+                        currentZoneId: currentState.currentZoneId,
+                        currentReportId: currentState.currentReportId
+                    };
+                    currentState = { ...currentState, ...sharedState, ...localNavigation, lootInputZone: null, doorInputZone: null };
                     renderSharedState();
                 });
                 gameRef.child('players').on('value', snapshot => updatePlayersDisplay(snapshot.val()));
