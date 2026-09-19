@@ -58,6 +58,17 @@
         </form>
     </div>
 
+    <div id="action-validation-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-80 p-4">
+        <div class="w-full max-w-xl amber-border-glow bg-black p-5 rounded-lg">
+            <div class="text-2xl font-bold text-amber-300 mb-3">VALIDATION DU MAITRE DE JEU</div>
+            <div id="action-validation-content" class="text-xl text-amber-100 whitespace-pre-line"></div>
+            <div class="flex flex-wrap gap-3 mt-5">
+                <button id="approve-action-button" type="button" class="btn-retro px-5 py-2 text-xl font-bold">ACCEPTER</button>
+                <button id="reject-action-button" type="button" class="btn-retro px-5 py-2 text-xl font-bold">REFUSER</button>
+            </div>
+        </div>
+    </div>
+
     <!-- MAIN TERMINAL FRAME -->
     <div class="crt-container flex-1 flex flex-col amber-border rounded-lg p-3 md:p-6 bg-black bg-opacity-90 relative overflow-hidden">
         
@@ -78,6 +89,7 @@
         <main id="terminal-screen" class="relative z-10 flex-1 flex flex-col overflow-y-auto pr-2">
             <!-- Le contenu HTML est généré dynamiquement par JavaScript -->
         </main>
+        <div id="action-status" class="relative z-10 text-amber-400 text-lg min-h-6"></div>
 
         <!-- FOOTER BAR -->
         <footer class="relative z-10 mt-4 pt-3 border-t-2 border-amber-500 flex flex-wrap justify-between items-center text-lg md:text-xl gap-2">
@@ -176,6 +188,9 @@
 
         let playerSession = null;
         let gameStateRef = null;
+        let actionQueueRef = null;
+        let pendingActions = {};
+        let activeValidationActionId = null;
 
         function normalizePseudo(value) {
             return value.trim().replace(/\s+/g, ' ').slice(0, 24);
@@ -250,6 +265,95 @@
 
         function canModifyGame() {
             return playerSession?.role === 'master';
+        }
+
+        function getActionStatusElement() {
+            return document.getElementById('action-status');
+        }
+
+        function getMyAction(targetType, targetId) {
+            return Object.entries(pendingActions)
+                .map(([id, action]) => ({ id, ...action }))
+                .filter(action => action.playerUid === playerSession?.uid && action.targetType === targetType && action.targetId === targetId)
+                .sort((first, second) => (second.createdAt || 0) - (first.createdAt || 0))[0] || null;
+        }
+
+        function renderActionStatus() {
+            const element = getActionStatusElement();
+            if (!element || !playerSession || playerSession.role === 'master') return;
+            const action = Object.values(pendingActions)
+                .filter(candidate => candidate.playerUid === playerSession.uid)
+                .sort((first, second) => (second.createdAt || 0) - (first.createdAt || 0))[0];
+            if (!action) {
+                element.textContent = '';
+                return;
+            }
+            const actionLabel = action.targetType === 'door' ? 'FORCAGE DE PORTE' : 'RECUPERATION DE BUTIN';
+            element.textContent = action.status === 'pending'
+                ? `ACTION EN ATTENTE DE VALIDATION DU MJ : ${actionLabel} - NIVEAU ${action.level}/5`
+                : action.status === 'approved'
+                    ? `ACTION VALIDEE PAR LE MJ : ${actionLabel} - NIVEAU ${action.level}/5`
+                    : `ACTION REFUSEE PAR LE MJ : ${actionLabel}`;
+        }
+
+        function renderMasterValidation() {
+            if (!canModifyGame()) return;
+            const actionEntry = Object.entries(pendingActions).find(([, action]) => action.status === 'pending');
+            const modal = document.getElementById('action-validation-modal');
+            if (!actionEntry) {
+                activeValidationActionId = null;
+                modal.classList.add('hidden');
+                return;
+            }
+            const [actionId, action] = actionEntry;
+            activeValidationActionId = actionId;
+            document.getElementById('action-validation-content').textContent = [
+                `Joueur : ${action.playerName}`,
+                `Action : ${action.targetType === 'door' ? 'FORCAGE DE PORTE' : 'RECUPERATION DE BUTIN'}`,
+                `Cible : ${action.targetLabel}`,
+                `Niveau proposé : ${action.level}/5`
+            ].join('\n');
+            modal.classList.remove('hidden');
+        }
+
+        function applyApprovedAction(action) {
+            if (action.targetType === 'door') {
+                const door = getDoorDefinition({ name: action.targetId, difficulty: action.difficulty });
+                const retryDelayMs = door ? getDoorRetryDelay(door, action.level) : 0;
+                currentState.doorLevels[action.targetId] = action.level;
+                currentState.doorRetryAt[action.targetId] = retryDelayMs > 0 ? Date.now() + retryDelayMs : 0;
+            } else {
+                currentState.unlockedLoot[action.targetId] = action.level;
+            }
+            publishGameState();
+            renderSharedState();
+        }
+
+        async function resolveAction(actionId, status) {
+            if (!canModifyGame() || !actionQueueRef || !pendingActions[actionId]) return;
+            const action = pendingActions[actionId];
+            if (status === 'approved') applyApprovedAction(action);
+            await actionQueueRef.child(actionId).update({ status, resolvedAt: firebase.database.ServerValue.TIMESTAMP });
+        }
+
+        async function submitAction(targetType, targetId, level, targetLabel, difficulty = 0) {
+            if (!actionQueueRef || !playerSession || playerSession.role === 'master') {
+                getActionStatusElement().textContent = 'ACTION NON ENVOYEE : FIREBASE DOIT ETRE CONFIGURE POUR JOUEUR A DISTANCE.';
+                return;
+            }
+            const actionRef = actionQueueRef.push();
+            await actionRef.set({
+                targetType,
+                targetId,
+                targetLabel,
+                level,
+                difficulty,
+                playerUid: playerSession.uid,
+                playerName: playerSession.pseudo,
+                status: 'pending',
+                createdAt: firebase.database.ServerValue.TIMESTAMP
+            });
+            getActionStatusElement().textContent = `ACTION EN ATTENTE DE VALIDATION DU MJ : NIVEAU ${level}/5`;
         }
 
         function watchGameState() {
@@ -330,6 +434,12 @@
                 const playerRef = gameRef.child(`players/${playerSession.uid}`);
                 await playerRef.set({ pseudo, role, characterRole: playerSession.characterRole, faction: playerSession.faction, connected: true });
                 playerRef.onDisconnect().remove();
+                actionQueueRef = gameRef.child('pendingActions');
+                actionQueueRef.on('value', snapshot => {
+                    pendingActions = snapshot.val() || {};
+                    renderActionStatus();
+                    renderMasterValidation();
+                });
                 gameStateRef = gameRef.child('state');
                 gameStateRef.on('value', snapshot => {
                     if (playerSession.role === 'master') return;
@@ -362,6 +472,12 @@
             const characterRoleRow = document.getElementById('character-role-row');
             const characterRoleSelect = document.getElementById('character-role');
             const passwordRow = document.getElementById('master-password-row');
+            document.getElementById('approve-action-button').addEventListener('click', () => {
+                if (activeValidationActionId) resolveAction(activeValidationActionId, 'approved');
+            });
+            document.getElementById('reject-action-button').addEventListener('click', () => {
+                if (activeValidationActionId) resolveAction(activeValidationActionId, 'rejected');
+            });
             Object.entries(CHARACTER_ROLES).forEach(([, section]) => {
                 const group = document.createElement('optgroup');
                 group.label = section.label;
@@ -921,8 +1037,13 @@
 // GESTION DU BUTIN ET DES NIVEAUX DE RECUPERATION
 //============================================================================================
         function toggleLoot(subZoneId, groupId = 'main') {
-            if (!canModifyGame()) return;
             const lootKey = groupId === 'main' ? subZoneId : `${subZoneId}:${groupId}`;
+
+            if (!canModifyGame()) {
+                currentState.lootInputZone = currentState.lootInputZone === lootKey ? null : lootKey;
+                openSubZone(currentState.currentGlobalKey, subZoneId, false);
+                return;
+            }
 
             if (Number.isInteger(currentState.unlockedLoot[lootKey])) {
                 delete currentState.unlockedLoot[lootKey];
@@ -961,7 +1082,6 @@
     // OUVERTURE ET FERMETURE DU PANNEAU DE FORCAGE
     //============================================================================================
         function toggleDoor(doorId) {
-            if (!canModifyGame()) return;
             if ((currentState.doorRetryAt[doorId] || 0) > Date.now()) {
                 return;
             }
@@ -978,7 +1098,6 @@
     // VALIDATION DU NIVEAU DE FORCAGE DE LA PORTE
     //============================================================================================
         function setDoorLevel(doorId) {
-            if (!canModifyGame()) return;
             const input = document.getElementById(`door-level-${doorId}`);
             const error = document.getElementById(`door-level-error-${doorId}`);
             const doorLevel = Number(input.value);
@@ -991,6 +1110,12 @@
 
             const currentZone = DATA_ZONES[currentState.currentGlobalKey].zones.find(zone => zone.door && zone.door.name === doorId);
             const door = currentZone ? getDoorDefinition(currentZone.door) : null;
+            if (!canModifyGame()) {
+                submitAction('door', doorId, doorLevel, door?.title || doorId, door?.difficulty || 0);
+                currentState.doorInputZone = null;
+                openSubZone(currentState.currentGlobalKey, currentState.currentZoneId, false);
+                return;
+            }
             const retryDelayMs = door ? getDoorRetryDelay(door, doorLevel) : 0;
             currentState.doorLevels[doorId] = doorLevel;
             currentState.doorRetryAt[doorId] = retryDelayMs > 0 ? Date.now() + retryDelayMs : 0;
@@ -1002,7 +1127,6 @@
     // VALIDATION DU NIVEAU DE RECUPERATION DU BUTIN
     //============================================================================================
         function setLootLevel(subZoneId, groupId = 'main') {
-            if (!canModifyGame()) return;
             const lootKey = groupId === 'main' ? subZoneId : `${subZoneId}:${groupId}`;
             const input = document.getElementById(`loot-level-${lootKey}`);
             const error = document.getElementById(`loot-level-error-${lootKey}`);
@@ -1011,6 +1135,15 @@
             if (!Number.isInteger(lootLevel) || lootLevel < 0 || lootLevel > 5) {
                 error.classList.remove('hidden');
                 input.focus();
+                return;
+            }
+
+            if (!canModifyGame()) {
+                const zone = DATA_ZONES[currentState.currentGlobalKey].zones.find(candidate => candidate.id === subZoneId);
+                const group = zone?.lootGroups?.find(candidate => candidate.id === groupId);
+                submitAction('loot', lootKey, lootLevel, group?.title || 'MATERIEL RECUPERABLE');
+                currentState.lootInputZone = null;
+                openSubZone(currentState.currentGlobalKey, subZoneId, false);
                 return;
             }
 
