@@ -19,7 +19,13 @@
     <div id="session-overlay" class="session-overlay">
         <form id="session-form" class="session-panel space-y-4">
             <div class="text-2xl font-bold text-amber-400">CONNEXION À LA PARTIE</div>
-            <div class="text-lg">PARTIE : HORYZON-517</div>
+            <div class="text-lg">PARTIE : <span id="session-code-label">CODE REQUIS POUR LES JOUEURS</span></div>
+            <div id="session-code-row">
+                <label class="block text-lg" for="session-code">CODE DE SESSION</label>
+                <input id="session-code" name="sessionCode" maxlength="6" minlength="6" pattern="[A-Z0-9]{6}" autocomplete="off" required
+                       class="w-full bg-black border border-amber-500 p-2 text-xl text-amber-100 outline-none uppercase"
+                       placeholder="CODE TRANSMIS PAR LE MAITRE">
+            </div>
             <label class="block text-lg" for="session-pseudo">PSEUDONYME</label>
             <input id="session-pseudo" name="pseudo" maxlength="24" autocomplete="nickname" required
                    class="w-full bg-black border border-amber-500 p-2 text-xl text-amber-100 outline-none"
@@ -29,6 +35,13 @@
                 <input id="master-password" name="password" type="password" autocomplete="current-password"
                        class="w-full bg-black border border-amber-500 p-2 text-xl text-amber-100 outline-none"
                        placeholder="MOT DE PASSE">
+            </div>
+            <div id="character-role-row">
+                <label class="block text-lg" for="character-role">ROLE DU PERSONNAGE</label>
+                <select id="character-role" name="characterRole" required
+                        class="w-full bg-black border border-amber-500 p-2 text-xl text-amber-100 outline-none">
+                    <option value="">SELECTIONNER UN ROLE</option>
+                </select>
             </div>
             <div id="session-error" class="session-error text-lg" role="alert"></div>
             <button type="submit" class="btn-retro w-full p-3 text-xl font-bold">[ ENTRER DANS LA PARTIE ]</button>
@@ -44,7 +57,10 @@
                 <span class="inline-block w-4 h-4 bg-amber-500 rounded-full animate-ping"></span>
                 <span class="font-bold">ORDINATEUR-SYSTEME OST // BRTHR V2.6</span>
             </div>
-            <div id="system-clock" class="text-right">--:--:-- UTC</div>
+            <div class="text-right">
+                <div id="active-session-code" class="text-amber-400 text-lg">SESSION : --</div>
+                <div id="system-clock">--:--:-- UTC</div>
+            </div>
         </header>
 
         <!-- MAIN DYNAMIC CONTENT CONTAINER -->
@@ -94,6 +110,37 @@
         const MASTER_NAME = 'Dieu';
         const MASTER_EMAIL = 'dieu@horyzon.local';
         const isFirebaseConfigured = Object.values(FIREBASE_CONFIG).every(Boolean);
+        let sessionCode = '';
+        const CHARACTER_ROLES = {
+            military: {
+                label: 'SECTION MILITAIRE',
+                roles: [
+                    'Soldat spécialiste',
+                    'Officier de sécurité / PM (Police Militaire)',
+                    'Caporal / Chef de groupe',
+                    'Éclaireur / Sniper',
+                    'Mercenaire / Fusilier de la Weyland-Yutani',
+                    'Armurier / Ravitailleur'
+                ]
+            },
+            civilian: {
+                label: 'SECTION CIVILE',
+                roles: [
+                    'Technicien',
+                    'Sauveteur',
+                    'Médecin',
+                    'Capitaine',
+                    'Pilote',
+                    'Représentant de la Compagnie',
+                    'Scientifique / Chercheur',
+                    'Androïde / Synthétique',
+                    'Mineur / Forreur',
+                    'Opérateur radio / Synthétiste réseau',
+                    'Docksman / Manutentionnaire',
+                    'Journaliste / Enquêteur'
+                ]
+            }
+        };
 
 //============================================================================================
 // DONNEES DES SECTEURS, PORTES
@@ -123,13 +170,35 @@
             return value.trim().replace(/\s+/g, ' ').slice(0, 24);
         }
 
+        function normalizeSessionCode(value) {
+            return value.trim().toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
+        }
+
+        function generateSessionCode() {
+            const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+            return Array.from({ length: 6 }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join('');
+        }
+
+        function getGamePath() {
+            return `games/${sessionCode || GAME_ID}`;
+        }
+
+        function getCharacterRole(roleName) {
+            for (const [faction, section] of Object.entries(CHARACTER_ROLES)) {
+                if (section.roles.includes(roleName)) return { faction, roleName };
+            }
+            return null;
+        }
+
         function isMasterPseudo(pseudo) {
             return pseudo.toLocaleLowerCase('fr-FR') === MASTER_NAME.toLocaleLowerCase('fr-FR');
         }
 
         function updatePlayersDisplay(players) {
             const playerNames = Object.values(players || {})
-                .map(player => player.pseudo)
+                .map(player => player.role === 'master'
+                    ? `MJ / Maître de jeu / ${player.pseudo}`
+                    : `${player.faction === 'military' ? 'MILITAIRE' : 'CIVIL'} / ${player.characterRole} / ${player.pseudo}`)
                 .filter(Boolean)
                 .sort((first, second) => first.localeCompare(second, 'fr'));
             const text = playerNames.length
@@ -183,9 +252,14 @@
             });
         }
 
-        function registerLocalSession(pseudo) {
-            playerSession = { pseudo, role: isMasterPseudo(pseudo) ? 'master' : 'player', uid: `local-${Date.now()}` };
+        function registerLocalSession(pseudo, characterRole) {
+            const isMaster = isMasterPseudo(pseudo);
+            sessionCode = isMaster ? generateSessionCode() : normalizeSessionCode(document.getElementById('session-code').value);
+            const roleData = getCharacterRole(characterRole);
+            playerSession = { pseudo, role: isMaster ? 'master' : 'player', characterRole: isMaster ? 'Maître de jeu' : roleData.roleName, faction: isMaster ? 'master' : roleData.faction, sessionCode, uid: `local-${Date.now()}` };
             updatePlayersDisplay({ [playerSession.uid]: playerSession });
+            document.getElementById('session-code-label').textContent = sessionCode;
+            document.getElementById('active-session-code').textContent = `SESSION : ${sessionCode}`;
             document.getElementById('session-overlay').classList.add('hidden');
         }
 
@@ -193,6 +267,8 @@
             event.preventDefault();
             const form = event.currentTarget;
             const pseudo = normalizePseudo(form.elements.pseudo.value);
+            const requestedSessionCode = normalizeSessionCode(form.elements.sessionCode.value);
+            const characterRole = form.elements.characterRole.value;
             const password = form.elements.password.value;
             const errorElement = document.getElementById('session-error');
             errorElement.textContent = '';
@@ -203,8 +279,15 @@
                 return;
             }
 
+            if (!isMasterPseudo(pseudo) && (requestedSessionCode.length !== 6 || !getCharacterRole(characterRole))) {
+                errorElement.textContent = 'CODE DE SESSION ET ROLE VALIDE REQUIS.';
+                return;
+            }
+
+            sessionCode = isMasterPseudo(pseudo) ? generateSessionCode() : requestedSessionCode;
+
             if (!isFirebaseConfigured) {
-                registerLocalSession(pseudo);
+                registerLocalSession(pseudo, characterRole);
                 errorElement.textContent = 'MODE LOCAL : FIREBASE N’EST PAS CONFIGURÉ.';
                 return;
             }
@@ -215,12 +298,22 @@
                     ? await auth.signInWithEmailAndPassword(MASTER_EMAIL, password)
                     : await auth.signInAnonymously();
                 const role = isMasterPseudo(pseudo) ? 'master' : 'player';
-                playerSession = { pseudo, role, uid: credential.user.uid };
+                const roleData = getCharacterRole(characterRole);
+                playerSession = { pseudo, role, characterRole: role === 'master' ? 'Maître de jeu' : roleData.roleName, faction: role === 'master' ? 'master' : roleData.faction, sessionCode, uid: credential.user.uid };
 
-                const playerRef = firebase.database().ref(`games/${GAME_ID}/players/${playerSession.uid}`);
-                await playerRef.set({ pseudo, role, connected: true });
+                const gameRef = firebase.database().ref(getGamePath());
+                if (role === 'master') {
+                    await gameRef.child('session').set({ code: sessionCode, createdAt: firebase.database.ServerValue.TIMESTAMP });
+                } else {
+                    const sessionSnapshot = await gameRef.child('session').once('value');
+                    if (!sessionSnapshot.exists() || sessionSnapshot.val().code !== sessionCode) {
+                        throw new Error('SESSION_NOT_FOUND');
+                    }
+                }
+                const playerRef = gameRef.child(`players/${playerSession.uid}`);
+                await playerRef.set({ pseudo, role, characterRole: playerSession.characterRole, faction: playerSession.faction, connected: true });
                 playerRef.onDisconnect().remove();
-                gameStateRef = firebase.database().ref(`games/${GAME_ID}/state`);
+                gameStateRef = gameRef.child('state');
                 gameStateRef.on('value', snapshot => {
                     if (playerSession.role === 'master') return;
                     const sharedState = snapshot.val();
@@ -228,22 +321,51 @@
                     currentState = { ...currentState, ...sharedState, lootInputZone: null, doorInputZone: null };
                     renderSharedState();
                 });
-                firebase.database().ref(`games/${GAME_ID}/players`).on('value', snapshot => updatePlayersDisplay(snapshot.val()));
+                gameRef.child('players').on('value', snapshot => updatePlayersDisplay(snapshot.val()));
+                document.getElementById('session-code-label').textContent = sessionCode;
+                document.getElementById('active-session-code').textContent = `SESSION : ${sessionCode}`;
                 document.getElementById('session-overlay').classList.add('hidden');
                 if (playerSession.role === 'master') publishGameState();
             } catch (error) {
-                errorElement.textContent = 'CONNEXION REFUSÉE : VÉRIFIEZ LE PSEUDONYME OU LE MOT DE PASSE.';
+                errorElement.textContent = error.message === 'SESSION_NOT_FOUND'
+                    ? 'CODE DE SESSION INCONNU OU SESSION NON OUVERTE.'
+                    : 'CONNEXION REFUSÉE : VÉRIFIEZ LE PSEUDONYME OU LE MOT DE PASSE.';
             }
         }
 
         function initializeSession() {
             const form = document.getElementById('session-form');
             const pseudoInput = document.getElementById('session-pseudo');
+            const sessionCodeInput = document.getElementById('session-code');
+            const sessionCodeRow = document.getElementById('session-code-row');
+            const characterRoleRow = document.getElementById('character-role-row');
+            const characterRoleSelect = document.getElementById('character-role');
             const passwordRow = document.getElementById('master-password-row');
-            form.addEventListener('submit', connectSession);
-            pseudoInput.addEventListener('input', () => {
-                passwordRow.classList.toggle('hidden', !isMasterPseudo(normalizePseudo(pseudoInput.value)));
+            Object.entries(CHARACTER_ROLES).forEach(([, section]) => {
+                const group = document.createElement('optgroup');
+                group.label = section.label;
+                section.roles.forEach(role => {
+                    const option = document.createElement('option');
+                    option.value = role;
+                    option.textContent = role;
+                    group.appendChild(option);
+                });
+                characterRoleSelect.appendChild(group);
             });
+            form.addEventListener('submit', connectSession);
+            const updateSessionFields = () => {
+                const isMaster = isMasterPseudo(normalizePseudo(pseudoInput.value));
+                passwordRow.classList.toggle('hidden', !isMaster);
+                sessionCodeRow.classList.toggle('hidden', isMaster);
+                characterRoleRow.classList.toggle('hidden', isMaster);
+                sessionCodeInput.required = !isMaster;
+                characterRoleSelect.required = !isMaster;
+            };
+            pseudoInput.addEventListener('input', updateSessionFields);
+            sessionCodeInput.addEventListener('input', () => {
+                sessionCodeInput.value = normalizeSessionCode(sessionCodeInput.value);
+            });
+            updateSessionFields();
             showHomeScreen(false);
             pseudoInput.focus();
 
