@@ -22,9 +22,19 @@
             <div class="text-lg">PARTIE : <span id="session-code-label">CODE REQUIS POUR LES JOUEURS</span></div>
             <div id="session-code-row">
                 <label class="block text-lg" for="session-code">CODE DE SESSION</label>
-                <input id="session-code" name="sessionCode" maxlength="6" minlength="6" pattern="[A-Z0-9]{6}" autocomplete="off" required
+                <input id="session-code" name="sessionCode" maxlength="4" minlength="4" pattern="[0-9]{4}" autocomplete="off" required
                        class="w-full bg-black border border-amber-500 p-2 text-xl text-amber-100 outline-none uppercase"
                        placeholder="CODE TRANSMIS PAR LE MAITRE">
+            </div>
+            <div id="master-session-code-row" class="hidden">
+                <label class="block text-lg" for="master-session-code">CODE DE SESSION DU MAITRE</label>
+                <div class="flex gap-2">
+                    <input id="master-session-code" name="masterSessionCode" maxlength="4" minlength="4" pattern="[0-9]{4}" readonly
+                           class="w-full bg-black border border-amber-500 p-2 text-2xl text-amber-100 outline-none tracking-widest"
+                           placeholder="----">
+                    <button id="generate-session-code" type="button" class="btn-retro px-3 text-lg font-bold whitespace-nowrap">GENERER</button>
+                </div>
+                <p class="text-amber-400 text-lg">Transmettez ce code à quatre chiffres aux joueurs.</p>
             </div>
             <label class="block text-lg" for="session-pseudo">PSEUDONYME</label>
             <input id="session-pseudo" name="pseudo" maxlength="24" autocomplete="nickname" required
@@ -171,12 +181,11 @@
         }
 
         function normalizeSessionCode(value) {
-            return value.trim().toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
+            return value.trim().replace(/[^0-9]/g, '').slice(0, 4);
         }
 
         function generateSessionCode() {
-            const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-            return Array.from({ length: 6 }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join('');
+            return String(Math.floor(1000 + Math.random() * 9000));
         }
 
         function getGamePath() {
@@ -254,7 +263,7 @@
 
         function registerLocalSession(pseudo, characterRole) {
             const isMaster = isMasterPseudo(pseudo);
-            sessionCode = isMaster ? generateSessionCode() : normalizeSessionCode(document.getElementById('session-code').value);
+            sessionCode = isMaster ? normalizeSessionCode(document.getElementById('master-session-code').value) : normalizeSessionCode(document.getElementById('session-code').value);
             const roleData = getCharacterRole(characterRole);
             playerSession = { pseudo, role: isMaster ? 'master' : 'player', characterRole: isMaster ? 'Maître de jeu' : roleData.roleName, faction: isMaster ? 'master' : roleData.faction, sessionCode, uid: `local-${Date.now()}` };
             updatePlayersDisplay({ [playerSession.uid]: playerSession });
@@ -267,7 +276,9 @@
             event.preventDefault();
             const form = event.currentTarget;
             const pseudo = normalizePseudo(form.elements.pseudo.value);
-            const requestedSessionCode = normalizeSessionCode(form.elements.sessionCode.value);
+            const requestedSessionCode = normalizeSessionCode(isMasterPseudo(pseudo)
+                ? form.elements.masterSessionCode.value
+                : form.elements.sessionCode.value);
             const characterRole = form.elements.characterRole.value;
             const password = form.elements.password.value;
             const errorElement = document.getElementById('session-error');
@@ -279,12 +290,16 @@
                 return;
             }
 
-            if (!isMasterPseudo(pseudo) && (requestedSessionCode.length !== 6 || !getCharacterRole(characterRole))) {
+            if (!isMasterPseudo(pseudo) && (requestedSessionCode.length !== 4 || !getCharacterRole(characterRole))) {
                 errorElement.textContent = 'CODE DE SESSION ET ROLE VALIDE REQUIS.';
                 return;
             }
 
-            sessionCode = isMasterPseudo(pseudo) ? generateSessionCode() : requestedSessionCode;
+            if (requestedSessionCode.length !== 4) {
+                errorElement.textContent = 'GENEREZ OU SAISISSEZ UN CODE DE SESSION A 4 CHIFFRES.';
+                return;
+            }
+            sessionCode = requestedSessionCode;
 
             if (!isFirebaseConfigured) {
                 registerLocalSession(pseudo, characterRole);
@@ -338,6 +353,9 @@
             const pseudoInput = document.getElementById('session-pseudo');
             const sessionCodeInput = document.getElementById('session-code');
             const sessionCodeRow = document.getElementById('session-code-row');
+            const masterSessionCodeRow = document.getElementById('master-session-code-row');
+            const masterSessionCodeInput = document.getElementById('master-session-code');
+            const generateSessionCodeButton = document.getElementById('generate-session-code');
             const characterRoleRow = document.getElementById('character-role-row');
             const characterRoleSelect = document.getElementById('character-role');
             const passwordRow = document.getElementById('master-password-row');
@@ -357,13 +375,22 @@
                 const isMaster = isMasterPseudo(normalizePseudo(pseudoInput.value));
                 passwordRow.classList.toggle('hidden', !isMaster);
                 sessionCodeRow.classList.toggle('hidden', isMaster);
+                masterSessionCodeRow.classList.toggle('hidden', !isMaster);
                 characterRoleRow.classList.toggle('hidden', isMaster);
                 sessionCodeInput.required = !isMaster;
+                masterSessionCodeInput.required = isMaster;
                 characterRoleSelect.required = !isMaster;
+                if (isMaster && masterSessionCodeInput.value.length !== 4) {
+                    masterSessionCodeInput.value = generateSessionCode();
+                }
             };
             pseudoInput.addEventListener('input', updateSessionFields);
             sessionCodeInput.addEventListener('input', () => {
                 sessionCodeInput.value = normalizeSessionCode(sessionCodeInput.value);
+            });
+            generateSessionCodeButton.addEventListener('click', () => {
+                masterSessionCodeInput.value = generateSessionCode();
+                masterSessionCodeInput.focus();
             });
             updateSessionFields();
             showHomeScreen(false);
