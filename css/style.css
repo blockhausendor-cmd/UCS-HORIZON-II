@@ -1,0 +1,281 @@
+        /* ==========================================================================
+           NOTE : STYLES GÉNÉRAUX ET EFFETS CRT
+           ========================================================================== */
+        
+        body {
+            background-color: #020b14;
+            color: #62d9ff;
+            font-family: 'VT323', monospace;
+            text-shadow: 0 0 3px rgba(98, 217, 255, 0.75);
+            overflow-x: hidden;
+        }
+
+        /* CRT Screen Overlay Effects */
+        .crt-container {
+            position: relative;
+            box-shadow: inset 0 0 100px rgba(0, 150, 220, 0.2);
+        }
+
+        .crt-container::after {
+            content: "";
+            position: absolute;
+            top: -50%;
+            left: -10%;
+            width: 120%;
+            height: 50%;
+            background: linear-gradient(
+                to bottom,
+                transparent,
+                rgba(85, 214, 255, 0.025),
+                rgba(85, 215, 255, 0.158),
+                rgba(85, 214, 255, 0.025),
+                transparent
+            );
+            filter: blur(25px);
+            opacity: 0.8;
+            pointer-events: none;
+            z-index: 1;
+            animation: screen-refresh-wave 15s linear infinite;
+        }
+
+        @keyframes screen-refresh-wave {
+            from { transform: translateY(0); }
+            to { transform: translateY(560%); }
+        }
+
+        .scanline {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(
+                rgba(18, 16, 16, 0) 50%, 
+                rgba(0, 0, 0, 0.4) 50%
+            );
+            background-size: 100% 4px;
+            z-index: 50;
+            pointer-events: none;
+            opacity: 0.6;
+        }
+
+        .crt-flicker {
+            animation: flicker 5s ease-in-out infinite;
+        }
+
+        @keyframes flicker {
+            0%   { opacity: 0.60; }
+            25%  { opacity: 0.80; }
+            50%  { opacity: 1.00; }
+            75%  { opacity: 0.70; }
+            85%  { opacity: 0.85; }
+            100% { opacity: 0.60; }
+        }
+
+        .amber-border {
+            border: 2px solid #159acb;
+            box-shadow: 0 0 8px rgba(21, 154, 203, 0.4);
+        }
+
+        .amber-border-glow {
+            border: 2px solid #55d6ff;
+            box-shadow: 0 0 15px rgba(85, 214, 255, 0.8), inset 0 0 10px rgba(85, 214, 255, 0.2);
+        }
+
+        .btn-retro {
+            background: rgba(21, 154, 203, 0.12);
+            border: 1px solid #159acb;
+            transition: all 0.2s ease;
+        }
+
+        .btn-retro:hover {
+            background: #ffb000 !important;
+            color: #020b14 !important;
+            border-color: #ffd866;
+            box-shadow: 0 0 12px #ffb000;
+            text-shadow: none;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #061827;
+            border: 1px solid #0d4968;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #159acb;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #8be7ff;
+        }
+
+        .blinking {
+            animation: blink 1s step-end infinite;
+        }
+
+        .teleprompter {
+            display: inline-block;
+            white-space: nowrap;
+            animation: teleprompter-loop 30s linear infinite;
+        }
+
+        @keyframes teleprompter-loop {
+            0%, 16.67% {
+                transform: translateX(100%);
+            }
+            100% {
+                transform: translateX(-100%);
+            }
+        }
+
+        @keyframes blink {
+            50% { opacity: 0; }
+        }
+
+        /* Style pour l'affichage spécial des doctorNotes */
+        .doctor-note-box {
+            color: #d9f7ff;
+            border: 2px dashed #55d6ff;
+            background-color: rgba(21, 154, 203, 0.12);
+            box-shadow: 0 0 10px rgba(85, 214, 255, 0.4);
+            text-shadow: 0 0 3px rgba(85, 214, 255, 0.75);
+        }
+
+        .doctor-loot-note-paper {
+            position: relative;
+            color: #25201a;
+            background:
+                radial-gradient(ellipse at 18% 12%, rgba(255, 255, 255, 0.72), transparent 28%),
+                radial-gradient(ellipse at 82% 88%, rgba(112, 83, 48, 0.16), transparent 34%),
+                repeating-linear-gradient(102deg, rgba(90, 65, 38, 0.045) 0 2px, transparent 2px 17px),
+                #e8dcc1;
+            border: 1px solid #b8a889;
+            box-shadow: 5px 7px 0 rgba(0, 0, 0, 0.18), inset 0 0 24px rgba(91, 65, 35, 0.2);
+            font-family: 'Caveat', cursive;
+            text-shadow: none;
+            transform: rotate(-0.6deg);
+        }
+
+        .doctor-loot-note-paper::before,
+        .doctor-loot-note-paper::after {
+            content: "";
+            position: absolute;
+            inset: 8px;
+            pointer-events: none;
+        }
+
+        .doctor-loot-note-paper::before {
+            border-left: 1px solid rgba(92, 62, 31, 0.16);
+            border-right: 1px solid rgba(255, 255, 255, 0.22);
+            transform: skewY(-1.5deg);
+        }
+
+        .doctor-loot-note-paper::after {
+            background: linear-gradient(165deg, transparent 0 42%, rgba(88, 62, 34, 0.08) 44%, transparent 47% 68%, rgba(255, 255, 255, 0.2) 70%, transparent 73%);
+            mix-blend-mode: multiply;
+        }
+
+        .doctor-loot-note-paper p {
+            position: relative;
+            z-index: 1;
+            font-size: 1.45rem;
+            line-height: 1.22;
+        }
+
+        .loot-item {
+            position: relative;
+            cursor: help;
+        }
+
+        .loot-tooltip {
+            display: none;
+            position: absolute;
+            left: 1.5rem;
+            bottom: calc(100% + 0.5rem);
+            z-index: 20;
+            width: min(24rem, calc(100vw - 4rem));
+            padding: 0.75rem;
+            color: #d9f7ff;
+            background: #061827;
+            border: 1px solid #55d6ff;
+            box-shadow: 0 0 12px rgba(85, 214, 255, 0.5);
+            text-shadow: 0 0 3px rgba(98, 217, 255, 0.75);
+            font-size: 1.1rem;
+            line-height: 1.2;
+        }
+
+        .loot-item:hover .loot-tooltip,
+        .loot-item:focus-within .loot-tooltip,
+        .loot-item.tooltip-open .loot-tooltip {
+            display: block;
+        }
+
+        /* Palette froide pour les utilitaires Tailwind amber encore utilisés dans le markup. */
+        .text-amber-100 { color: #d9f7ff !important; }
+        .text-amber-200 { color: #b8efff !important; }
+        .text-amber-300 { color: #8be7ff !important; }
+        .text-amber-400 { color: #55d6ff !important; }
+        .text-amber-500 { color: #2bb8e8 !important; }
+        .text-amber-600 { color: #159acb !important; }
+        .bg-amber-500 { background-color: #55d6ff !important; }
+        .bg-amber-900 { background-color: #0a3045 !important; }
+        .bg-amber-950 { background-color: #061827 !important; }
+        .border-amber-400 { border-color: #55d6ff !important; }
+        .border-amber-500 { border-color: #2bb8e8 !important; }
+        .border-amber-600 { border-color: #159acb !important; }
+        .border-amber-700 { border-color: #0d6b92 !important; }
+        .border-amber-800 { border-color: #0d4968 !important; }
+        .hover\:bg-amber-500:hover { background-color: #55d6ff !important; }
+        .hover\:bg-amber-950:hover { background-color: #0a3045 !important; }
+        .hover\:text-amber-200:hover { color: #d9f7ff !important; }
+
+        .session-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+            background: rgba(2, 11, 20, 0.94);
+        }
+
+        .session-overlay.hidden { display: none; }
+
+        .session-panel {
+            width: min(100%, 32rem);
+            background: #061827;
+            border: 2px solid #55d6ff;
+            box-shadow: 0 0 25px rgba(85, 214, 255, 0.45), inset 0 0 18px rgba(85, 214, 255, 0.1);
+            padding: 1.5rem;
+        }
+
+        .session-error { min-height: 1.5rem; color: #ffb000; }
+
+        .players-bar {
+            min-width: 0;
+            max-width: 52%;
+            overflow: hidden;
+            color: #55d6ff;
+        }
+
+        .players-teleprompter {
+            display: inline-block;
+            min-width: 100%;
+            white-space: nowrap;
+            animation: players-loop 24s linear infinite;
+        }
+
+        @keyframes players-loop {
+            from { transform: translateX(100%); }
+            to { transform: translateX(-100%); }
+        }
+
+        @media (orientation: landscape) and (min-width: 768px) {
+            .doctor-note-wrapper {
+                width: 50%;
+            }
+
+            .doctor-loot-note-paper {
+                width: 50%;
+            }
+        }
