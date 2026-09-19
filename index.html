@@ -90,6 +90,10 @@
             <!-- Le contenu HTML est généré dynamiquement par JavaScript -->
         </main>
         <div id="action-status" class="relative z-10 text-amber-400 text-lg min-h-6"></div>
+        <div id="player-views-panel" class="hidden relative z-10 amber-border bg-black p-3 mt-2 text-amber-200">
+            <div class="text-amber-400 font-bold mb-1">VISUALISATION DES JOUEURS</div>
+            <div id="player-views" class="text-lg"></div>
+        </div>
 
         <!-- FOOTER BAR -->
         <footer class="relative z-10 mt-4 pt-3 border-t-2 border-amber-500 flex flex-wrap justify-between items-center text-lg md:text-xl gap-2">
@@ -188,6 +192,7 @@
 
         let playerSession = null;
         let gameStateRef = null;
+        let playerPresenceRef = null;
         let actionQueueRef = null;
         let pendingActions = {};
         let activeValidationActionId = null;
@@ -230,6 +235,44 @@
                 ? `JOUEURS CONNECTÉS : ${playerNames.join(' // ')}`
                 : 'JOUEURS CONNECTÉS : AUCUN';
             document.getElementById('players-teleprompter').textContent = text;
+            updatePlayerViews(players);
+        }
+
+        function getViewLabel(state) {
+            if (!state || state.view === 'home') return 'ACCUEIL';
+            const globalData = state.currentGlobalKey ? DATA_ZONES[state.currentGlobalKey] : null;
+            const zone = globalData?.zones.find(candidate => candidate.id === state.currentZoneId);
+            const report = zone?.reports.find(candidate => candidate.id === state.currentReportId);
+            if (report) return `${globalData.title} / ${zone.code} / ${report.code}`;
+            if (zone) return `${globalData.title} / ${zone.code}`;
+            return globalData?.title || 'NAVIGATION';
+        }
+
+        function updatePlayerViews(players) {
+            const panel = document.getElementById('player-views-panel');
+            const container = document.getElementById('player-views');
+            if (!panel || !container) return;
+            if (playerSession?.role !== 'master') {
+                panel.classList.add('hidden');
+                return;
+            }
+            const views = Object.values(players || {})
+                .filter(player => player.role !== 'master')
+                .sort((first, second) => (first.pseudo || '').localeCompare(second.pseudo || '', 'fr'))
+                .map(player => `${player.pseudo} : ${player.viewLabel || 'ACCUEIL'}`);
+            container.textContent = views.length ? views.join(' // ') : 'AUCUN JOUEUR CONNECTE';
+            panel.classList.remove('hidden');
+        }
+
+        function publishPlayerView() {
+            if (!playerPresenceRef || !playerSession) return;
+            playerPresenceRef.update({
+                view: currentState.view,
+                currentGlobalKey: currentState.currentGlobalKey,
+                currentZoneId: currentState.currentZoneId,
+                currentReportId: currentState.currentReportId,
+                viewLabel: getViewLabel(currentState)
+            });
         }
 
         function getSharedState() {
@@ -432,6 +475,7 @@
                     }
                 }
                 const playerRef = gameRef.child(`players/${playerSession.uid}`);
+                playerPresenceRef = playerRef;
                 await playerRef.set({ pseudo, role, characterRole: playerSession.characterRole, faction: playerSession.faction, connected: true });
                 playerRef.onDisconnect().remove();
                 actionQueueRef = gameRef.child('pendingActions');
@@ -455,6 +499,7 @@
                     renderSharedState();
                 });
                 gameRef.child('players').on('value', snapshot => updatePlayersDisplay(snapshot.val()));
+                publishPlayerView();
                 document.getElementById('session-code-label').textContent = sessionCode;
                 document.getElementById('active-session-code').textContent = `SESSION : ${sessionCode}`;
                 document.getElementById('connection-mode').textContent = 'RESEAU : SYNCHRONISE';
@@ -576,6 +621,7 @@
 //============================================================================================
         function showHomeScreen(sync = true) {
             currentState = { view: 'home', currentGlobalKey: null, currentZoneId: null, currentReportId: null, unlockedLoot: currentState.unlockedLoot, lootInputZone: null, doorLevels: currentState.doorLevels, doorInputZone: null, doorRetryAt: currentState.doorRetryAt, openedZones: currentState.openedZones };
+            publishPlayerView();
             
             document.getElementById('nav-home-btn').classList.add('hidden');
             document.getElementById('nav-back-btn').classList.add('hidden');
@@ -645,6 +691,7 @@
             currentState.view = 'global_zone';
             currentState.currentGlobalKey = zoneKey;
             currentState.currentZoneId = null;
+            publishPlayerView();
 
             document.getElementById('nav-home-btn').classList.remove('hidden');
             document.getElementById('nav-back-btn').classList.remove('hidden');
@@ -695,6 +742,7 @@
             currentState.view = 'zone_detail';
             currentState.currentGlobalKey = globalKey;
             currentState.currentZoneId = subZoneId;
+            publishPlayerView();
 
             document.getElementById('nav-home-btn').classList.remove('hidden');
             document.getElementById('nav-back-btn').classList.remove('hidden');
@@ -973,6 +1021,7 @@
             currentState.currentGlobalKey = globalKey;
             currentState.currentZoneId = subZoneId;
             currentState.currentReportId = reportId;
+            publishPlayerView();
 
             const globalData = DATA_ZONES[globalKey];
             const zone = globalData.zones.find(z => z.id === subZoneId);
