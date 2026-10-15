@@ -53,46 +53,7 @@
                         code: "ZONE A",
                         name: "Accueil et salle de soins principale",
                         desc: "Certaines rampes sont réglées en mode chirurgie : blanches, crues, de l’autre côté de la vitre.\nD’autres clignotent doucement, comme si le système hésitait à s’éteindre.\nÇa sent le désinfectant, le plastique chauffé…\nEt quelque chose de plus ancien, plus lourd, incrusté dans les surfaces.\nLes murs sont propres en apparence.\nTrop propres par rapport à la station.\nMais en s’approchant, on voit les traces mal effacées :\nTrois lits médicaux, disposés en étoile autour d’un bras chirurgical motorisé.\n• Un lit est intact.\n• Le deuxième est taché, sang séché sur les sangles.\n• Le troisième a été arraché de ses rails muraux et repoussé contre le mur.\nSur les bras mécaniques :\n• Scalpels automatiques,\n• Pinces,\n• Injecteurs,\n• Scies osseuses compactes.",
-                        loot: [
-                "Si récupération des outillages sur les pinces",
-                "5x calpels automatiques (usagé / non stérils)",
-                "3x Pinces",
-                "18x Injecteurs (vides)",
-                "2x Scies osseuses compactes",
-                "Si fouille de la salle de soins principale",    
-                "2x Injecteurs d’adrénaline -2Tension (2 utilisations max).",
-                "1x Kit de pansements synthétiques sous vide",
-                "1x Analgésiques lourds -4Tension (effets secondaires)",
-                "1x Antalgiques puissants",
-                "15x Cartouches de sérum physiologique",
-                "1x Stimulants (-2 Tension)",
-                "2x Patchs thermiques médicaux ",
-                        ],
-                        lootGroups: [
-                            {
-                                id: "tools",
-                                title: "SI RÉCUPÉRATION DES OUTILLAGES SUR LES PINCES",
-                                items: [
-                                    "5x Scalpels automatiques (usagés / non stériles)",
-                                    "3x Pinces",
-                                    "18x Injecteurs (vides)",
-                                    "2x Scies osseuses compactes"
-                                ]
-                            },
-                            {
-                                id: "room",
-                                title: "SI FOUILLE DE LA SALLE DE SOINS PRINCIPALE",
-                                items: [
-                                    "2x Injecteurs d'adrénaline -2 Tension (2 utilisations max)",
-                                    "1x Kit de pansements synthétiques sous vide",
-                                    "1x Analgésiques lourds -4 Tension (effets secondaires)",
-                                    "1x Antalgiques puissants",
-                                    "15x Cartouches de sérum physiologique",
-                                    "1x Stimulants (-2 Tension)",
-                                    "2x Patchs thermiques médicaux"
-                                ]
-                            }
-                        ],
+                        lootGroups: LOOT_GROUPS.inf_a,
                         reports: [
                             {
                                 id: "rep_inf_1",
@@ -122,12 +83,7 @@
                         code: "ZONE B",
                         name: "Salle urgences ",
                         desc: "Une zone plus petite, plus étroite.\nPensée pour les situations de crise.\nLe sol est marqué de traînées parallèles, comme si des corps avaient été déplacés rapidement.\nUn chariot médical renversé :\n• Poches de sang éventrées,\n• Cathéters,\n• Compresses abandonnées.\nCe qu’ils peuvent récupérer :\n• Sacs de perfusion,\n• Outils de suture,\n• Antiseptiques,\n• Masques respiratoires.\nÀ gauche un comptoir pour deux infirmières. Les ordinateurs sont cassés.\nSur le mur, une liste écrite à la main, partiellement effacée :\n• Noms barrés,\n• Annotations rapides,\n• Puis… plus rien.\nQuelqu’un s’est arrêté d’écrire avant la fin.",
-                        loot: [
-                            "1x Scalpel laser de précision (Batterie 45%)",
-                            "3x Doseurs d'Analgésique puissant (Morph-Synth)",
-                            "1x Défibrillateur portatif haute capacité",
-                            "2x Combinaisons étanches de bloc opératoire (Taille L)"
-                        ],
+                        lootGroups: LOOT_GROUPS.inf_b,
                         reports: [
                             {
                                 id: "rep_inf_93",
@@ -183,13 +139,7 @@
                         name: "Stockage médical / pharmacie",
                         door: { name: "infirmerie_c_door", difficulty: 1 },
                         desc: "Une pièce fermée, température légèrement plus basse.\n\nLes armoires sont partiellement vidées.\n\nPas pillées au hasard : sélectionnées.\n\nIl reste :\n\n- Médicaments lourds,\n- Matériel technique,\n- Équipements que seuls des professionnels sauraient utiliser.",
-                        loot: [
-                            "1x Antalgiques puissants",
-                            "2x Morphiniques (permet d’endormir)",
-                            "2x Outils chirurgicaux portatifs",
-                            "10x Sprays cryogéniques médicaux",
-                            "30x Couvertures thermiques"
-                        ],
+                        lootGroups: LOOT_GROUPS.inf_c,
                         reports: [
                             {
                                 id: "rep_inf_5",
@@ -209,12 +159,7 @@
                         code: "ZONE D",
                         name: "Bureau Privé du Dr. Becker",
                         desc: "Un bureau en acajou de synth-bois, couvert de dossiers confidentiels et d'échantillons sous scellés. Un coffre mural fort reste entrouvert.",
-                        loot: [
-                            "1x Disque dur crypté d'archives médicales de la station",
-                            "1x Injecteur universel d'Antidote expérimental (1 dose)",
-                            "1x Carnet de notes personnelles du Dr. Becker",
-                            "100x Crédits réseau sous forme de puces magnétiques"
-                        ],
+                        lootGroups: LOOT_GROUPS.inf_d,
                         doctorLootNote: `Lettre manuscrite personnelle - Dr. Thomas Becker
 
 (non datée - retrouvée pliée)
@@ -339,23 +284,7 @@ Et j'ai la certitude glaçante que`,
                         code: "ZONE A",
                         name: "Le vaisseau UCS-Horizon",
                         desc: "Il y a la place pour deux vaisseaux de cette taille, mais celui-ci est seul dans le hangar.\n\nDEPUIS L'EXTÉRIEUR\n- Sas inférieur découpé au plasma.\n- Métal replié vers l'intérieur : c'est clairement le point d'entrée de l'équipe de fret.\n\nOBSERVATION\n- Sas non étanche.\n- Joint à remplacer.\n- Câble électrique sectionné.\n- Trace de liquide séché sous le navire, probablement laissée lorsque le givre a dégelé.\n\nÀ L'INTÉRIEUR\nARRIÈRE : compartiments médicaux ouverts et vides, rations disparues, caisses laissées ouvertes et outils mécaniques manquants.\nAVANT : diagnostic moteur fonctionnel. Les réserves sont basses mais stables et devront être rechargées.",
-                        lootGroups: [
-                            {
-                                id: "observation",
-                                title: "OBSERVATION DES LIEUX",
-                                items: [
-                                    "Sas inférieur non étanche",
-                                    "Joint du sas à remplacer",
-                                    "Câble électrique sectionné",
-                                    "Trace de liquide séché sous le navire",
-                                    "Compartiments médicaux ouverts et vides",
-                                    "Rations disparues et caisses ouvertes",
-                                    "Outils mécaniques manquants",
-                                    "Diagnostic moteur fonctionnel",
-                                    "Réserves basses mais stables : rechargement nécessaire"
-                                ]
-                            }
-                        ],
+                        lootGroups: LOOT_GROUPS.hangar_a,
                         reports: [
                             {
                                 id: "rep_hangar_a_1",
@@ -380,42 +309,7 @@ Et j'ai la certitude glaçante que`,
                         code: "ZONE B",
                         name: "Stockage technique",
                         desc: "Une cloison mobile sépare cette zone du reste du hangar. Elle semble ancienne, mais le matériel porte les marques d'une utilisation récente : tâches au sol, traces de chariot, vis éparses et caisses ouvertes. Le désordre est celui d'un travail précipité, pas celui d'une fuite ou d'une panique.\n\nDe hauts rayonnages métalliques occupent la pièce. Des chariots techniques sont abandonnés près des établis, au milieu de bacs de quincaillerie, de rabiots et d'un rack de tôles et de matières premières.",
-                        lootGroups: [
-                            {
-                                id: "materials",
-                                title: "MATIÈRES PREMIÈRES ET CONSOMMABLES",
-                                items: [
-                                    "Plaques de tôle de différentes tailles, imparfaites",
-                                    "Mousse isolante thermique neuve ou déjà utilisée",
-                                    "Câbles haute résistance, certains sur rouleau",
-                                    "Câblage et boutons divers en vrac",
-                                    "Connecteurs universels électriques",
-                                    "Tuyaux de diverses tailles",
-                                    "Bonbonnes de gaz de 25 à 50 kg",
-                                    "Graisse en pot ou pulvérisateur",
-                                    "Huile mécanique",
-                                    "Liquide de refroidissement",
-                                    "Bidon de décape-peinture",
-                                    "Bandes de renfort composite",
-                                    "Résine de colmatage thermique",
-                                    "Câbles de traction manuels avec cliquets",
-                                    "Sangles",
-                                    "Capteurs portables défectueux : chaleur et pression"
-                                ]
-                            },
-                            {
-                                id: "tools",
-                                title: "OUTILS ET ÉQUIPEMENTS",
-                                items: [
-                                    "Vieux poste à souder manuel, capricieux mais utilisable",
-                                    "Pinces",
-                                    "Clés",
-                                    "Torche à souder",
-                                    "Riveteuse électrique portative",
-                                    "Découpeuse à disque"
-                                ]
-                            }
-                        ],
+                        lootGroups: LOOT_GROUPS.hangar_b,
                         reports: [
                             {
                                 id: "rep_hangar_b_1",
@@ -432,12 +326,7 @@ Et j'ai la certitude glaçante que`,
                         code: "ZONE C",
                         name: "Passerelles supérieures",
                         desc: "Des passerelles métalliques grillagées courent juste au-dessus des têtes et offrent une vue plongeante sur le hangar et le vaisseau. L'éclairage est partiel, avec des zones d'ombre naturelles.\n\nLa passerelle donne accès aux capteurs du hangar, aux panneaux de commande locaux et à d'anciens terminaux de maintenance. Quelques prompteurs sont encore en place, probablement utilisés pour gérer les lumières et l'activité générale du hangar.",
-                        loot: [
-                            "Accès aux capteurs du hangar",
-                            "Panneaux de commande locaux",
-                            "Anciens terminaux de maintenance",
-                            "Prompteurs de supervision encore installés"
-                        ],
+                        lootGroups: LOOT_GROUPS.hangar_c,
                         reports: [
                             {
                                 id: "rep_hangar_c_1",
@@ -454,20 +343,7 @@ Et j'ai la certitude glaçante que`,
                         code: "ZONE D",
                         name: "Sas logistique et atelier de récupération",
                         desc: "Une porte est entrouverte et coincée, probablement à cause de la vieillesse du site. Des traces de passages répétés, des éraflures anciennes et récentes marquent le seuil.\n\nÀ l'intérieur, l'air sent l'huile, la graisse de moteur et un peu la transpiration. Le chauffage tourne trop fort. La ventilation grince et siffle, diffusant une chaleur lourde mêlée à l'odeur du métal. Une vieille odeur de café reste accrochée aux surfaces et aux cinq sièges raccommodés.\n\nUne table de travail branlante contient des tiroirs de pièces détachées. Des établis graisseux sont couverts d'outils suspendus ou posés sur le métal. La lumière crue vient de lampes suspendues, dont certaines oscillent légèrement.",
-                        loot: [
-                            "10x Couvertures thermiques",
-                            "Batteries portables",
-                            "4x Vieux systèmes de maintien en vie avec masque respiratoire",
-                            "4x Harnais",
-                            "10x Balises de localisation, portée 200 m",
-                            "2x Détecteurs de balise",
-                            "4x Combinaisons étanches d'entretien",
-                            "Injecteurs d'adrénaline - Tension, 2 utilisations maximum",
-                            "Analgésiques lourds, avec effets secondaires",
-                            "1x Antiseptiques industriels",
-                            "2x Attelles modulaires",
-                            "1x Scanner vital ancien, lent et imprécis"
-                        ],
+                        lootGroups: LOOT_GROUPS.hangar_d,
                         reports: [
                             {
                                 id: "rep_hangar_d_1",
@@ -494,10 +370,7 @@ Et j'ai la certitude glaçante que`,
                         name: "Le Sas de liaison",
                         desc: "En vous approchant, vos craintes se confirment : d'autres ont eu la meme idee. Mais a premiere vue, toutes les tentatives pour l'ouvrir ont ete des echecs.\n\nLa porte comporte des traces de brulures. Au sol, une trace noire est jonchee de debris de verre. La porte a ete griffee, comme si certains avaient tente de taper dessus avec des barres de fer. Mais elle est solide, et meme les quelques traces de meuleuse semblent ne pas en avoir venu a bout.",
                         door: { name: "qg_a_door", difficulty: 2 },
-                        loot: [
-                            "1x Disque de meuleuse portative",
-                            "1x Briquet a essence en bon etat"
-                        ],
+                        lootGroups: LOOT_GROUPS.qg_a,
                         reports: []
                     },
                     {
@@ -508,7 +381,7 @@ Et j'ai la certitude glaçante que`,
                         accessRequires: "qg_a",
                         desc: "Un couloir rectiligne de facilement 20 metres de long. De chaque cote, de grandes fenetres sans tain blindees bordent les murs.\n\nSur la gauche, on distingue nettement deux guichets de presentation pour les reclamations. Des haut-parleurs fixes sont suspendus au plafond pour diffuser des annonces.\n\nAu plafond, une camera pointe vers l'entree, mais son voyant de fonctionnement est eteint.\n\nAu fond du couloir se dresse une porte solide, non blindee, equipee d'une petite lucarne coulissante actuellement fermee.\n\nAccessible une fois la porte blindee deverrouillee ou forcee.",
                         door: { name: "qg_b_door", difficulty: 2 },
-                        loot: [],
+                        lootGroups: LOOT_GROUPS.qg_b,
                         reports: []
                     },
                     {
@@ -518,7 +391,7 @@ Et j'ai la certitude glaçante que`,
                         parentZone: "qg_b",
                         accessRequires: "qg_b",
                         desc: "Derriere la porte du fond se trouve une intersection tres etriquee. Quatre directions s'offrent a vous :\n\nA droite : Porte notee Armurerie et Salle de repos\n\nEn face : Porte notee Cellules\n\nA gauche : Porte notee Administratif",
-                        loot: [],
+                        lootGroups: LOOT_GROUPS.qg_c,
                         reports: []
                     },
                     {
@@ -528,10 +401,7 @@ Et j'ai la certitude glaçante que`,
                         parentZone: "qg_c",
                         accessRequires: "qg_c",
                         desc: "Un alignement sombre de 24 cellules tres etroites. Chacune est concue pour contenir au maximum 2 personnes assises.\n\nL'etat general est assez moyen. Toutes les grilles sont grandes ouvertes.\n\nL'endroit semble abandonne a la hate : un trousseau de cles pend encore sur la serrure de l'une des grilles.",
-                        loot: [
-                            "1x Trousseau de cles du bloc carceral",
-                            "1x Matraque rigide (oubliee sur un banc)"
-                        ],
+                        lootGroups: LOOT_GROUPS.qg_d,
                         reports: []
                     },
                     {
@@ -541,11 +411,7 @@ Et j'ai la certitude glaçante que`,
                         parentZone: "qg_c",
                         accessRequires: "qg_c",
                         desc: "Un espace mal range. Il y a clairement eu du mouvement ici, mais pas d'attaque ni de debordement violent. On sent nettement que les agents ont simplement commence a negliger les taches basiques de rangement au fur et a mesure que la crise s'intensifiait.\n\nDes tasses trainent, des feuilles volantes jonchent le sol.\n\nPlusieurs ordinateurs sont encore allumes. La plupart sont verrouilles par mot de passe, mais l'un d'eux a ete laisse ouvert en plein sur la page d'un dossier confidentiel.",
-                        loot: [
-                            "Indice informatique : consultation du dossier laisse ouvert (donnees sur un incident etouffe ou identite d'un detenu transfere en urgence)",
-                            "1x Veste de service d'agent",
-                            "1x Badge d'acces administratif (Niveau 1)"
-                        ],
+                        lootGroups: LOOT_GROUPS.qg_e,
                         reports: []
                     },
                     {
@@ -555,16 +421,7 @@ Et j'ai la certitude glaçante que`,
                         parentZone: "qg_c",
                         accessRequires: "qg_c",
                         desc: "Sur la droite, une rangee de chaises et des postes informatiques en piteux etat. Le corps d'un agent de securite est affale sur une chaise, le visage ecrase contre le bureau.\n\nSur la gauche de la piece se dresse une cage d'armes en grillage renforce.",
-                        loot: [
-                            { item: "drz32_rifle", min: 1, max: 1 },
-                            { item: "drz32_magazine", min: 1, max: 2 },
-                            { item: "drz32_ammunition_box", min: 1, max: 1 },
-                            { item: "drz32_sling", min: 1, max: 2 },
-                            { item: "c17_pistol", min: 1, max: 1 },
-                            { item: "c17_magazine", min: 1, max: 1 },
-                            { item: "tactical_light", min: 1, max: 1 },
-                            { item: "ballistic_vest", min: 1, max: 2 }
-                        ],
+                        lootGroups: LOOT_GROUPS.qg_f,
                         reports: []
                     }
                 ]

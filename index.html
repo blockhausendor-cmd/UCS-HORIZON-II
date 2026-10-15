@@ -62,11 +62,22 @@
         <div class="w-full max-w-xl amber-border-glow bg-black p-5 rounded-lg">
             <div class="text-2xl font-bold text-amber-300 mb-3">VALIDATION DU MAITRE DE JEU</div>
             <div id="action-validation-content" class="text-xl text-amber-100 whitespace-pre-line"></div>
+            <p id="action-validation-error" class="text-red-400 mt-3" role="alert"></p>
             <div class="flex flex-wrap gap-3 mt-5">
                 <button id="approve-action-button" type="button" class="btn-retro px-5 py-2 text-xl font-bold">ACCEPTER</button>
                 <button id="reject-action-button" type="button" class="btn-retro px-5 py-2 text-xl font-bold">REFUSER</button>
             </div>
         </div>
+    </div>
+
+    <div id="inventory-overlay" class="hidden fixed inset-0 z-40 flex items-center justify-center bg-black bg-opacity-80 p-4">
+        <section class="w-full max-w-3xl max-h-full overflow-y-auto amber-border-glow bg-black p-5 rounded-lg" aria-labelledby="inventory-title">
+            <header class="flex justify-between items-center gap-4 border-b border-amber-600 pb-3 mb-4">
+                <h2 id="inventory-title" class="text-2xl font-bold text-amber-300">SUR SOIT</h2>
+                <button type="button" onclick="toggleInventory(false)" class="btn-retro px-4 py-2 text-lg font-bold">FERMER</button>
+            </header>
+            <div id="inventory-content" class="space-y-4 text-amber-100"></div>
+        </section>
     </div>
 
     <!-- MAIN TERMINAL FRAME -->
@@ -83,6 +94,9 @@
                 <div id="connection-mode" class="text-amber-600 text-sm">RESEAU : EN ATTENTE</div>
                 <div id="system-clock">--:--:-- UTC</div>
             </div>
+            <button id="inventory-tab-btn" onclick="toggleInventory()" class="btn-retro px-4 py-2 rounded hidden whitespace-nowrap">
+                SUR SOIT
+            </button>
         </header>
 
         <!-- MAIN DYNAMIC CONTENT CONTAINER -->
@@ -118,6 +132,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
     <script src='js/catalogue.js'></script>
+    <script src='js/butins.js'></script>
     <script src='js/secteurs.js'></script>
     <script>
 //============================================================================================
@@ -187,7 +202,10 @@
             doorLevels: {},
             doorInputZone: null,
             doorRetryAt: {},
-            openedZones: {}
+            openedZones: {},
+            inventories: {},
+            inventoryOwners: {},
+            lootClaims: {}
         };
 
         let playerSession = null;
@@ -240,6 +258,7 @@
 
         function getViewLabel(state) {
             if (!state || state.view === 'home') return 'ACCUEIL';
+            if (state.view === 'inventory') return 'SUR SOIT';
             const globalData = state.currentGlobalKey ? DATA_ZONES[state.currentGlobalKey] : null;
             const zone = globalData?.zones.find(candidate => candidate.id === state.currentZoneId);
             const report = zone?.reports.find(candidate => candidate.id === state.currentReportId);
@@ -284,7 +303,10 @@
                 unlockedLoot: currentState.unlockedLoot,
                 doorLevels: currentState.doorLevels,
                 doorRetryAt: currentState.doorRetryAt,
-                openedZones: currentState.openedZones
+                openedZones: currentState.openedZones,
+                inventories: currentState.inventories,
+                inventoryOwners: currentState.inventoryOwners,
+                lootClaims: currentState.lootClaims
             };
         }
 
@@ -310,6 +332,203 @@
             return playerSession?.role === 'master';
         }
 
+        function getLootGroupKey(zoneId, groupId) {
+            return groupId === 'main' ? zoneId : `${zoneId}:${groupId}`;
+        }
+
+        function getLootSource(globalKey, zoneId, groupId, itemIndex) {
+            const zone = DATA_ZONES[globalKey]?.zones.find(candidate => candidate.id === zoneId);
+            if (!zone) return null;
+            const group = zone.lootGroups?.find(candidate => candidate.id === groupId)
+                || (groupId === 'main' && zone.loot ? { id: 'main', title: 'MATÉRIEL RÉCUPÉRABLE', items: zone.loot } : null);
+            const loot = group?.items[itemIndex];
+            return loot === undefined ? null : { zone, group, loot };
+        }
+
+        function getLootCatalogId(loot) {
+            if (typeof loot !== 'string') return loot.item;
+            const itemName = loot.replace(/^\s*\d+\s*x\s*/i, '').trim();
+            const normalizedName = itemName.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('fr-FR');
+            const matchingEntry = Object.entries(LOOT_CATALOG).find(([, item]) => (
+                item.name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('fr-FR') === normalizedName
+            ));
+            if (matchingEntry) return matchingEntry[0];
+            if (normalizedName === 'batteries portables') return 'portable_battery';
+            return null;
+        }
+
+        function getLootItemName(loot) {
+            const catalogId = getLootCatalogId(loot);
+            if (catalogId) return LOOT_CATALOG[catalogId].name;
+            return typeof loot === 'string' ? loot.replace(/^\s*\d+\s*x\s*/i, '').trim() : loot.item;
+        }
+
+        function getLootQuantity(loot, lootLevel) {
+            if (typeof loot === 'string') {
+                const quantityMatch = loot.match(/^\s*(\d+)\s*x\s*/i);
+                return quantityMatch ? Number(quantityMatch[1]) : 1;
+            }
+            const minimum = Math.max(1, Number(loot.min) || 1);
+            const maximum = Math.max(minimum, Number(loot.max) || minimum);
+            return Math.floor(minimum + (maximum - minimum) * (lootLevel - 1) / 4);
+        }
+
+        function getLootPickupDetails(action) {
+            if (
+                action.quantity !== 1
+                || !Number.isInteger(action.itemIndex)
+                || typeof action.playerUid !== 'string'
+                || !action.playerUid
+                || typeof action.playerName !== 'string'
+                || !action.playerName
+            ) {
+                throw new Error('Demande de récupération invalide.');
+            }
+            const source = getLootSource(action.globalKey, action.zoneId, action.groupId, action.itemIndex);
+            if (!source || source.group.collectible === false) {
+                throw new Error('Cet élément ne peut pas être emporté.');
+            }
+            const lootKey = getLootGroupKey(action.zoneId, action.groupId);
+            const lootLevel = currentState.unlockedLoot[lootKey];
+            const visibleLootCount = Number.isInteger(lootLevel)
+                ? Math.ceil(source.group.items.length * lootLevel / 5)
+                : 0;
+            const targetId = `pickup:${action.zoneId}:${action.groupId}:${action.itemIndex}`;
+            if (action.targetId !== targetId || action.itemIndex >= visibleLootCount) {
+                throw new Error('Cet objet n’est pas actuellement accessible dans le butin.');
+            }
+            const door = source.zone.door ? getDoorDefinition(source.zone.door) : null;
+            if (door && !getDoorState(door, currentState.doorLevels[door.id]).isOpen) {
+                throw new Error('La porte de cette zone est encore verrouillée.');
+            }
+            const available = getLootQuantity(source.loot, lootLevel) - (Number(currentState.lootClaims[targetId]) || 0);
+            if (available < 1) throw new Error('Cet objet a déjà été entièrement récupéré.');
+            return { ...source, lootLevel, targetId };
+        }
+
+        function addLootToInventory(action, actionId) {
+            const pickup = getLootPickupDetails(action);
+            const catalogId = getLootCatalogId(pickup.loot);
+            const catalogItem = catalogId ? LOOT_CATALOG[catalogId] : null;
+            const content = catalogItem?.content;
+            const inventoryItem = {
+                id: actionId,
+                name: getLootItemName(pickup.loot),
+                description: catalogItem?.description || '',
+                quantity: 1,
+                source: `${pickup.zone.code} — ${pickup.group.title}`,
+                ...(catalogId ? { catalogId } : {}),
+                ...(content ? { content: { current: content.capacity, capacity: content.capacity, unit: content.unit } } : {})
+            };
+            const playerInventory = currentState.inventories[action.playerUid] || [];
+            currentState.inventories[action.playerUid] = [...playerInventory, inventoryItem];
+            currentState.inventoryOwners = currentState.inventoryOwners || {};
+            currentState.inventoryOwners[action.playerUid] = action.playerName;
+            currentState.lootClaims = currentState.lootClaims || {};
+            currentState.lootClaims[pickup.targetId] = (Number(currentState.lootClaims[pickup.targetId]) || 0) + 1;
+        }
+
+        function createInventoryElement(tagName, className, text) {
+            const element = document.createElement(tagName);
+            if (className) element.className = className;
+            if (text !== undefined) element.textContent = text;
+            return element;
+        }
+
+        function renderInventoryContents() {
+            const container = document.getElementById('inventory-content');
+            if (!container || !playerSession) return;
+            container.replaceChildren();
+
+            const inventories = currentState.inventories || {};
+            const ownerIds = canModifyGame()
+                ? [...new Set([...Object.keys(inventories), ...Object.keys(currentState.inventoryOwners || {})])]
+                : [playerSession.uid];
+            if (ownerIds.length === 0) {
+                container.appendChild(createInventoryElement('p', 'text-lg text-amber-200', 'Aucun objet transporté pour le moment.'));
+                return;
+            }
+
+            ownerIds.forEach(ownerId => {
+                const items = inventories[ownerId] || [];
+                const ownerName = ownerId === playerSession.uid
+                    ? playerSession.pseudo
+                    : currentState.inventoryOwners?.[ownerId] || 'Joueur';
+                const section = createInventoryElement('section', 'amber-border bg-amber-950 bg-opacity-20 p-4 rounded-lg');
+                section.appendChild(createInventoryElement('h3', 'text-xl font-bold text-amber-300 mb-3', canModifyGame() ? ownerName : 'MES OBJETS'));
+                if (items.length === 0) {
+                    section.appendChild(createInventoryElement('p', 'text-amber-200', 'Aucun objet transporté pour le moment.'));
+                } else {
+                    const list = createInventoryElement('ul', 'space-y-3');
+                    items.forEach(item => {
+                        const row = createInventoryElement('li', 'border-b border-amber-800 pb-2');
+                        const quantityText = item.quantity > 1 ? ` × ${item.quantity}` : '';
+                        row.appendChild(createInventoryElement('div', 'font-bold text-amber-100', `${item.name}${quantityText}`));
+                        if (item.content) {
+                            row.appendChild(createInventoryElement(
+                                'div',
+                                'text-amber-400',
+                                `Contenu : ${item.content.current}/${item.content.capacity} ${item.content.unit}`
+                            ));
+                        }
+                        if (item.description) row.appendChild(createInventoryElement('div', 'text-sm text-amber-200', item.description));
+                        list.appendChild(row);
+                    });
+                    section.appendChild(list);
+                }
+                container.appendChild(section);
+            });
+        }
+
+        function toggleInventory(open = null) {
+            if (!playerSession) return;
+            const overlay = document.getElementById('inventory-overlay');
+            const shouldOpen = open === null ? overlay.classList.contains('hidden') : open;
+            overlay.classList.toggle('hidden', !shouldOpen);
+            if (shouldOpen) renderInventoryContents();
+        }
+
+        function requestLootItem(globalKey, zoneId, groupId, itemIndex) {
+            const source = getLootSource(globalKey, zoneId, groupId, itemIndex);
+            if (!source || !playerSession || source.group.collectible === false) return;
+
+            const targetId = `pickup:${zoneId}:${groupId}:${itemIndex}`;
+            if (getMyAction('loot_pickup', targetId)) {
+                getActionStatusElement().textContent = 'UNE DEMANDE POUR CET OBJET EST DÉJÀ EN ATTENTE DU MJ.';
+                return;
+            }
+            const lootLevel = currentState.unlockedLoot[getLootGroupKey(zoneId, groupId)];
+            const available = getLootQuantity(source.loot, lootLevel) - (Number(currentState.lootClaims[targetId]) || 0);
+            if (available < 1) {
+                getActionStatusElement().textContent = 'CET OBJET A DÉJÀ ÉTÉ RÉCUPÉRÉ.';
+                return;
+            }
+
+            const targetLabel = getLootItemName(source.loot);
+            const actionDetails = { globalKey, zoneId, groupId, itemIndex, quantity: 1 };
+            if (canModifyGame()) {
+                try {
+                    addLootToInventory({
+                        targetType: 'loot_pickup',
+                        targetId,
+                        targetLabel,
+                        ...actionDetails,
+                        playerUid: playerSession.uid,
+                        playerName: playerSession.pseudo
+                    }, `local-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+                    publishGameState();
+                    openSubZone(globalKey, zoneId, false);
+                    getActionStatusElement().textContent = `${targetLabel} AJOUTÉ À L’INVENTAIRE.`;
+                    if (!document.getElementById('inventory-overlay').classList.contains('hidden')) renderInventoryContents();
+                } catch (error) {
+                    getActionStatusElement().textContent = `RÉCUPÉRATION REFUSÉE : ${error.message}`;
+                }
+                return;
+            }
+
+            submitAction('loot_pickup', targetId, null, targetLabel, 0, actionDetails);
+        }
+
         function getActionStatusElement() {
             return document.getElementById('action-status');
         }
@@ -317,7 +536,7 @@
         function getMyAction(targetType, targetId) {
             return Object.entries(pendingActions)
                 .map(([id, action]) => ({ id, ...action }))
-                .filter(action => action.playerUid === playerSession?.uid && action.targetType === targetType && action.targetId === targetId)
+                .filter(action => action.playerUid === playerSession?.uid && action.targetType === targetType && action.targetId === targetId && action.status === 'pending')
                 .sort((first, second) => (second.createdAt || 0) - (first.createdAt || 0))[0] || null;
         }
 
@@ -331,11 +550,15 @@
                 element.textContent = '';
                 return;
             }
-            const actionLabel = action.targetType === 'door' ? 'FORCAGE DE PORTE' : 'RECUPERATION DE BUTIN';
+            const actionLabel = action.targetType === 'door'
+                ? `FORCAGE DE PORTE - NIVEAU ${action.level}/5`
+                : action.targetType === 'loot'
+                    ? `OUVERTURE DU BUTIN - NIVEAU ${action.level}/5`
+                    : `PRISE DE BUTIN - ${action.targetLabel}`;
             element.textContent = action.status === 'pending'
-                ? `ACTION EN ATTENTE DE VALIDATION DU MJ : ${actionLabel} - NIVEAU ${action.level}/5`
+                ? `ACTION EN ATTENTE DE VALIDATION DU MJ : ${actionLabel}`
                 : action.status === 'approved'
-                    ? `ACTION VALIDEE PAR LE MJ : ${actionLabel} - NIVEAU ${action.level}/5`
+                    ? `ACTION VALIDEE PAR LE MJ : ${actionLabel}`
                     : `ACTION REFUSEE PAR LE MJ : ${actionLabel}`;
         }
 
@@ -350,53 +573,88 @@
             }
             const [actionId, action] = actionEntry;
             activeValidationActionId = actionId;
+            const actionLabel = action.targetType === 'door'
+                ? 'FORCAGE DE PORTE'
+                : action.targetType === 'loot'
+                    ? 'OUVERTURE DU BUTIN'
+                    : 'PRISE D’OBJET';
+            const pickupSource = action.targetType === 'loot_pickup'
+                ? getLootSource(action.globalKey, action.zoneId, action.groupId, action.itemIndex)
+                : null;
+            const pickupContent = pickupSource
+                ? LOOT_CATALOG[getLootCatalogId(pickupSource.loot)]?.content
+                : null;
             document.getElementById('action-validation-content').textContent = [
                 `Joueur : ${action.playerName}`,
-                `Action : ${action.targetType === 'door' ? 'FORCAGE DE PORTE' : 'RECUPERATION DE BUTIN'}`,
+                `Action : ${actionLabel}`,
                 `Cible : ${action.targetLabel}`,
-                `Niveau proposé : ${action.level}/5`
+                ...(action.targetType === 'loot_pickup' ? [
+                    `Quantité : ${action.quantity}`,
+                    ...(pickupContent ? [`Contenu à l’acquisition : ${pickupContent.capacity}/${pickupContent.capacity} ${pickupContent.unit}`] : [])
+                ] : [`Niveau proposé : ${action.level}/5`])
             ].join('\n');
+            document.getElementById('action-validation-error').textContent = '';
             modal.classList.remove('hidden');
         }
 
-        function applyApprovedAction(action) {
+        function applyApprovedAction(action, actionId) {
             if (action.targetType === 'door') {
                 const door = getDoorDefinition({ name: action.targetId, difficulty: action.difficulty });
                 const retryDelayMs = door ? getDoorRetryDelay(door, action.level) : 0;
                 currentState.doorLevels[action.targetId] = action.level;
                 currentState.doorRetryAt[action.targetId] = retryDelayMs > 0 ? Date.now() + retryDelayMs : 0;
-            } else {
+            } else if (action.targetType === 'loot') {
                 currentState.unlockedLoot[action.targetId] = action.level;
+            } else if (action.targetType === 'loot_pickup') {
+                addLootToInventory(action, actionId);
+            } else {
+                throw new Error('Type d’action non reconnu.');
             }
             publishGameState();
             renderSharedState();
+            if (!document.getElementById('inventory-overlay').classList.contains('hidden')) renderInventoryContents();
         }
 
         async function resolveAction(actionId, status) {
             if (!canModifyGame() || !actionQueueRef || !pendingActions[actionId]) return;
             const action = pendingActions[actionId];
-            if (status === 'approved') applyApprovedAction(action);
-            await actionQueueRef.child(actionId).update({ status, resolvedAt: firebase.database.ServerValue.TIMESTAMP });
+            activeValidationActionId = null;
+            document.getElementById('action-validation-error').textContent = '';
+            try {
+                if (status === 'approved') applyApprovedAction(action, actionId);
+                await actionQueueRef.child(actionId).update({ status, resolvedAt: firebase.database.ServerValue.TIMESTAMP });
+            } catch (error) {
+                activeValidationActionId = actionId;
+                document.getElementById('action-validation-error').textContent = `ERREUR : ${error.message}`;
+            }
         }
 
-        async function submitAction(targetType, targetId, level, targetLabel, difficulty = 0) {
+        async function submitAction(targetType, targetId, level, targetLabel, difficulty = 0, details = {}) {
             if (!actionQueueRef || !playerSession || playerSession.role === 'master') {
-                getActionStatusElement().textContent = 'ACTION NON ENVOYEE : FIREBASE DOIT ETRE CONFIGURE POUR JOUEUR A DISTANCE.';
+                getActionStatusElement().textContent = 'ACTION NON ENVOYEE : FIREBASE DOIT ETRE CONFIGURE POUR ENVOYER UNE DEMANDE AU MJ.';
                 return;
             }
-            const actionRef = actionQueueRef.push();
-            await actionRef.set({
-                targetType,
-                targetId,
-                targetLabel,
-                level,
-                difficulty,
-                playerUid: playerSession.uid,
-                playerName: playerSession.pseudo,
-                status: 'pending',
-                createdAt: firebase.database.ServerValue.TIMESTAMP
-            });
-            getActionStatusElement().textContent = `ACTION EN ATTENTE DE VALIDATION DU MJ : NIVEAU ${level}/5`;
+            try {
+                const actionRef = actionQueueRef.push();
+                await actionRef.set({
+                    targetType,
+                    targetId,
+                    targetLabel,
+                    level,
+                    difficulty,
+                    ...details,
+                    playerUid: playerSession.uid,
+                    playerName: playerSession.pseudo,
+                    status: 'pending',
+                    createdAt: firebase.database.ServerValue.TIMESTAMP
+                });
+                getActionStatusElement().textContent = `ACTION EN ATTENTE DE VALIDATION DU MJ : ${targetLabel}`;
+                if (targetType === 'loot_pickup' && currentState.view === 'zone_detail') {
+                    openSubZone(currentState.currentGlobalKey, currentState.currentZoneId, false);
+                }
+            } catch (error) {
+                getActionStatusElement().textContent = `ERREUR D’ENVOI DE LA DEMANDE : ${error.message}`;
+            }
         }
 
         function watchGameState() {
@@ -405,7 +663,11 @@
                 const sharedState = snapshot.val();
                 if (!sharedState) return;
                 currentState = { ...currentState, ...sharedState, lootInputZone: null, doorInputZone: null };
+                currentState.inventories = currentState.inventories || {};
+                currentState.inventoryOwners = currentState.inventoryOwners || {};
+                currentState.lootClaims = currentState.lootClaims || {};
                 renderSharedState();
+                if (!document.getElementById('inventory-overlay').classList.contains('hidden')) renderInventoryContents();
             });
         }
 
@@ -419,6 +681,7 @@
             document.getElementById('active-session-code').textContent = `SESSION : ${sessionCode}`;
             document.getElementById('connection-mode').textContent = 'RESEAU : MODE LOCAL';
             document.getElementById('session-overlay').classList.add('hidden');
+            document.getElementById('inventory-tab-btn').classList.remove('hidden');
         }
 
         async function connectSession(event) {
@@ -496,7 +759,11 @@
                         currentReportId: currentState.currentReportId
                     };
                     currentState = { ...currentState, ...sharedState, ...localNavigation, lootInputZone: null, doorInputZone: null };
+                    currentState.inventories = currentState.inventories || {};
+                    currentState.inventoryOwners = currentState.inventoryOwners || {};
+                    currentState.lootClaims = currentState.lootClaims || {};
                     renderSharedState();
+                    if (!document.getElementById('inventory-overlay').classList.contains('hidden')) renderInventoryContents();
                 });
                 gameRef.child('players').on('value', snapshot => updatePlayersDisplay(snapshot.val()));
                 publishPlayerView();
@@ -504,6 +771,7 @@
                 document.getElementById('active-session-code').textContent = `SESSION : ${sessionCode}`;
                 document.getElementById('connection-mode').textContent = 'RESEAU : SYNCHRONISE';
                 document.getElementById('session-overlay').classList.add('hidden');
+                document.getElementById('inventory-tab-btn').classList.remove('hidden');
                 if (playerSession.role === 'master') publishGameState();
             } catch (error) {
                 errorElement.textContent = error.message === 'SESSION_NOT_FOUND'
@@ -620,7 +888,21 @@
 //1. ÉCRAN D'ACCUEIL DE LA CONSOLE DE STATION SPATIALE
 //============================================================================================
         function showHomeScreen(sync = true) {
-            currentState = { view: 'home', currentGlobalKey: null, currentZoneId: null, currentReportId: null, unlockedLoot: currentState.unlockedLoot, lootInputZone: null, doorLevels: currentState.doorLevels, doorInputZone: null, doorRetryAt: currentState.doorRetryAt, openedZones: currentState.openedZones };
+            currentState = {
+                view: 'home',
+                currentGlobalKey: null,
+                currentZoneId: null,
+                currentReportId: null,
+                unlockedLoot: currentState.unlockedLoot,
+                lootInputZone: null,
+                doorLevels: currentState.doorLevels,
+                doorInputZone: null,
+                doorRetryAt: currentState.doorRetryAt,
+                openedZones: currentState.openedZones,
+                inventories: currentState.inventories || {},
+                inventoryOwners: currentState.inventoryOwners || {},
+                lootClaims: currentState.lootClaims || {}
+            };
             publishPlayerView();
             
             document.getElementById('nav-home-btn').classList.add('hidden');
@@ -806,21 +1088,38 @@
                 const definition = getLootDefinition(loot);
                 if (typeof loot === 'string') return definition.name;
 
-                const minimum = Math.max(1, Number(loot.min) || 1);
-                const maximum = Math.max(minimum, Number(loot.max) || minimum);
-                const quantity = Math.floor(minimum + (maximum - minimum) * (lootLevel - 1) / 4);
-                return `${quantity}x ${definition.name}`;
+                return `${getLootQuantity(loot, lootLevel)}x ${definition.name}`;
             };
 
-            const renderLootItem = (loot, lootLevel) => {
+            const renderLootItem = (loot, lootLevel, group, itemIndex) => {
                 const definition = getLootDefinition(loot);
                 const description = definition.description
                     ? `<span class="loot-tooltip" role="tooltip">${definition.description}</span>`
                     : '';
-                return `<li class="loot-item flex items-center space-x-2" tabindex="0" onclick="toggleLootTooltip(this, event)">
-                    <span class="text-amber-400">&bull;</span>
-                    <span>${getLootDisplay(loot, lootLevel)}</span>
-                    ${description}
+                const targetId = `pickup:${subZoneId}:${group.id}:${itemIndex}`;
+                const totalQuantity = getLootQuantity(loot, lootLevel);
+                const remainingQuantity = Math.max(0, totalQuantity - (Number(currentState.lootClaims[targetId]) || 0));
+                const pendingAction = getMyAction('loot_pickup', targetId);
+                const pickupButton = group.collectible === false
+                    ? '<span class="text-sm text-amber-600">INFORMATION NON TRANSPORTABLE</span>'
+                    : remainingQuantity === 0
+                        ? '<span class="text-sm text-amber-600">TOUT A ÉTÉ RÉCUPÉRÉ</span>'
+                        : pendingAction
+                            ? '<span class="text-sm text-amber-400">DEMANDE EN ATTENTE DU MJ</span>'
+                            : `<button type="button" onclick="requestLootItem('${currentState.currentGlobalKey}', '${subZoneId}', '${group.id}', ${itemIndex})" class="btn-retro px-3 py-1 text-base rounded">${canModifyGame() ? 'PRENDRE' : 'DEMANDER AU MJ'}</button>`;
+                const remainingLabel = totalQuantity > 1
+                    ? `<span class="text-sm text-amber-500">(${remainingQuantity}/${totalQuantity} disponible(s))</span>`
+                    : '';
+                return `<li class="loot-item flex flex-wrap items-center justify-between gap-2" tabindex="0" onclick="toggleLootTooltip(this, event)">
+                    <span class="flex items-center space-x-2">
+                        <span class="text-amber-400">&bull;</span>
+                        <button type="button" onclick="event.stopPropagation(); requestLootItem('${currentState.currentGlobalKey}', '${subZoneId}', '${group.id}', ${itemIndex})" class="text-left hover:underline cursor-pointer">
+                            ${getLootDisplay(loot, lootLevel)}
+                        </button>
+                        ${remainingLabel}
+                        ${description}
+                    </span>
+                    ${pickupButton}
                 </li>`;
             };
 
@@ -831,7 +1130,7 @@
 
                 if (isGroupOpen) {
                     const visibleLootCount = Math.ceil(group.items.length * savedLevel / 5);
-                    const lootItems = group.items.slice(0, visibleLootCount).map(item => renderLootItem(item, savedLevel)).join('');
+                    const lootItems = group.items.slice(0, visibleLootCount).map((item, index) => renderLootItem(item, savedLevel, group, index)).join('');
                     return `
                         <div class="amber-border-glow bg-amber-950 bg-opacity-40 p-4 rounded-lg mt-6">
                             <div class="flex items-center justify-between border-b border-amber-600 pb-2 mb-3 gap-3">
@@ -946,7 +1245,10 @@
                     </div>
                 `;
             } else if (zone.lootGroups) {
-                lootSectionHTML = zone.lootGroups.map(group => renderLootPanel(group, `${subZoneId}:${group.id}`)).join('');
+                lootSectionHTML = zone.lootGroups.map(group => renderLootPanel(
+                    group,
+                    group.id === 'main' ? subZoneId : `${subZoneId}:${group.id}`
+                )).join('');
             } else {
                 const mainLootGroup = { id: 'main', title: 'MATÉRIEL RÉCUPÉRABLE', items: zone.loot };
                 lootSectionHTML = renderLootPanel(mainLootGroup, subZoneId);
@@ -1095,6 +1397,15 @@
             const lootKey = groupId === 'main' ? subZoneId : `${subZoneId}:${groupId}`;
 
             if (!canModifyGame()) {
+                if (Number.isInteger(currentState.unlockedLoot[lootKey])) {
+                    currentState.lootInputZone = null;
+                    openSubZone(currentState.currentGlobalKey, subZoneId, false);
+                    return;
+                }
+                if (getMyAction('loot', lootKey)) {
+                    getActionStatusElement().textContent = 'DEMANDE D’OUVERTURE DU BUTIN DÉJÀ EN ATTENTE DU MJ.';
+                    return;
+                }
                 currentState.lootInputZone = currentState.lootInputZone === lootKey ? null : lootKey;
                 openSubZone(currentState.currentGlobalKey, subZoneId, false);
                 return;

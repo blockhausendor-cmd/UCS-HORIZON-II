@@ -5,7 +5,8 @@
             },
             drz32_magazine: {
                 name: "Chargeur pour fusil DRZ-32",
-                description: "Chargeur de 30 coups à balles perforantes de qualité militaire pour DRZ-32."
+                description: "Chargeur de 30 coups à balles perforantes de qualité militaire pour DRZ-32.",
+                content: { capacity: 30, unit: "cartouches" }
             },
             drz32_ammunition_box: {
                 name: "Boîte de munitions compatible DRZ-32",
@@ -21,11 +22,13 @@
             },
             c17_magazine: {
                 name: "Chargeur pour arme C17Z",
-                description: "Chargeur standard compatible avec l'arme de poing C17Z."
+                description: "Chargeur standard compatible avec l'arme de poing C17Z.",
+                content: { capacity: 24, unit: "cartouches" }
             },
             tactical_light: {
                 name: "Lampe tactique",
-                description: "Lampe tactique à fixation universelle pour arme, utile dans les zones privées d'éclairage."
+                description: "Lampe tactique à fixation universelle pour arme, utile dans les zones privées d'éclairage.",
+                content: { capacity: 100, unit: "%" }
             },
             ballistic_vest: {
                 name: "Gilet pare-éclats",
@@ -141,7 +144,8 @@
             },
             portable_battery: {
                 name: "Batterie portable",
-                description: "Batterie autonome destinée à alimenter des équipements portatifs."
+                description: "Batterie autonome destinée à alimenter des équipements portatifs.",
+                content: { capacity: 100, unit: "%" }
             },
             manual_welder: {
                 name: "Vieux poste à souder manuel",
@@ -222,6 +226,75 @@
             defective_portable_sensor: {
                 name: "Capteur portable défectueux",
                 description: "Capteur portable de chaleur et de pression, fonctionnant de manière intermittente."
+            },
+            bloodstained_scalpel: {
+                name: "Bistouri maculé",
+                description: "Un outil chirurgical tranchant, couvert de sang séché et entouré de ruban adhésif sur le manche."
+            },
+            frantic_notes_notebook: {
+                name: "Carnet de notes frénétiques",
+                description: "Un journal couvert de symboles répétitifs et de la phrase \"Ne dors pas\" écrite des dizaines de fois."
+            },
+            sealed_noise_protection_headphones: {
+                name: "Casque antibruit collé",
+                description: "Un casque industriel recouvert de mastic pour le fixer à la tête, utilisé pour tenter d'étouffer les murmures."
+            },
+            empty_antipsychotics_blister: {
+                name: "Plaquette d'antipsychotiques vide",
+                description: "Un emballage de sédatifs lourds entièrement vidé à la hâte."
+            },
+            opened_solvent_bottle: {
+                name: "Bouteille de solvant entamée",
+                description: "Un bidon de produit chimique industriel ouvert, dégageant une odeur forte et toxique."
+            },
+            bent_iron_bar: {
+                name: "Barre de fer tordue",
+                description: "Une rambarde arrachée de force pour servir d'arme de fortune."
+            },
+            punctured_fire_extinguisher: {
+                name: "Extincteur percuté",
+                description: "Un extincteur vide dont le corps en métal porte des traces d'impacts répétés."
+            },
+            security_baton: {
+                name: "Matraque d'agent de sécurité",
+                description: "Arme de maintien de l'ordre abandonnée au sol, voyant de batterie clignotant au rouge."
+            },
+            overturned_backpack: {
+                name: "Sac à dos renversé",
+                description: "Un sac à moitié fouillé d'où s'échappent des affaires personnelles et des vêtements."
+            },
+            lone_magnetic_boot: {
+                name: "Botte magnétique solitaire",
+                description: "Une chaussure de travail abandonnée à la hâte lors d'un mouvement de foule."
+            },
+            half_eaten_food_ration: {
+                name: "Ration alimentaire entamée",
+                description: "Un paquet de nourriture de synthèse à moitié consommé, commençant à sécher."
+            },
+            stale_synth_coffee_cup: {
+                name: "Tasse de synth-café rance",
+                description: "Une tasse oubliée sur une table, couverte d'une pellicule sèche au fond."
+            },
+            blinking_tactical_pad: {
+                name: "PAD tactique clignotant",
+                description: "Un écran personnel dont la batterie faiblit, affichant un message de détresse non envoyé."
+            },
+            weak_flashlight: {
+                name: "Lampe de poche affaiblie",
+                description: "Une torche posée sur le flanc dont le faisceau lumineux grésille faiblement.",
+                content: { capacity: 100, unit: "%" }
+            },
+            looted_first_aid_kit: {
+                name: "Kit de soins pillé",
+                description: "Une boîte de premiers secours ouverte, débarrassée de ses bandes et antiseptiques."
+            },
+            sealed_adrenaline_injector: {
+                name: "Injecteur d'adrénaline scellé",
+                description: "Une dose de secours tombée de la veste d'un secouriste pendant la panique."
+            },
+            bloodstained_access_badge: {
+                name: "Badge d'accès ensanglanté",
+                description: "Pass de sécurité niveau 1 abandonné près d'un sas verrouillé."
             }
         };
 //============================================================================================
