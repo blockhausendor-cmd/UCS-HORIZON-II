@@ -252,10 +252,15 @@
         .session-error { min-height: 1.5rem; color: #ffb000; }
 
         .players-bar {
+            flex: 1 1 0;
             min-width: 0;
-            max-width: 52%;
             overflow: hidden;
             color: #55d6ff;
+        }
+
+        .status-ticker {
+            flex: 1 1 0;
+            min-width: 0;
         }
 
         .players-teleprompter {

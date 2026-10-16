@@ -35,6 +35,18 @@
                     <button id="generate-session-code" type="button" class="btn-retro px-3 text-lg font-bold whitespace-nowrap">GENERER</button>
                 </div>
                 <p class="text-amber-400 text-lg">Transmettez ce code à quatre chiffres aux joueurs.</p>
+                <div class="mt-3 border-t border-amber-700 pt-3">
+                    <div class="flex gap-2">
+                        <select id="saved-sessions-select" class="w-full bg-black border border-amber-500 p-2 text-lg text-amber-100 outline-none">
+                            <option value="">NOUVELLE PARTIE</option>
+                        </select>
+                        <button id="load-sessions-button" type="button" class="btn-retro px-3 text-lg font-bold whitespace-nowrap">SAUVEGARDES</button>
+                    </div>
+                    <div id="saved-session-info" class="hidden mt-2 text-amber-200 text-base">
+                        <div id="saved-session-details" class="whitespace-pre-line"></div>
+                        <button id="delete-session-button" type="button" class="btn-retro px-3 py-1 mt-2 text-base font-bold">SUPPRIMER CETTE SAUVEGARDE</button>
+                    </div>
+                </div>
             </div>
             <label class="block text-lg" for="session-pseudo">PSEUDONYME</label>
             <input id="session-pseudo" name="pseudo" maxlength="24" autocomplete="nickname" required
@@ -58,19 +70,18 @@
         </form>
     </div>
 
-    <div id="action-validation-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-80 p-4">
-        <div class="w-full max-w-xl amber-border-glow bg-black p-5 rounded-lg">
-            <div class="text-2xl font-bold text-amber-300 mb-3">VALIDATION DU MAITRE DE JEU</div>
-            <div id="action-validation-content" class="text-xl text-amber-100 whitespace-pre-line"></div>
-            <p id="action-validation-error" class="text-red-400 mt-3" role="alert"></p>
+    <div id="transfer-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-80 p-4">
+        <div class="w-full max-w-md amber-border-glow bg-black p-5 rounded-lg">
+            <div class="text-2xl font-bold text-amber-300 mb-3">OBJET REÇU</div>
+            <div id="transfer-modal-content" class="text-xl text-amber-100 whitespace-pre-line"></div>
             <div class="flex flex-wrap gap-3 mt-5">
-                <button id="approve-action-button" type="button" class="btn-retro px-5 py-2 text-xl font-bold">ACCEPTER</button>
-                <button id="reject-action-button" type="button" class="btn-retro px-5 py-2 text-xl font-bold">REFUSER</button>
+                <button id="accept-transfer-button" type="button" class="btn-retro px-5 py-2 text-xl font-bold">ACCEPTER</button>
+                <button id="reject-transfer-button" type="button" class="btn-retro px-5 py-2 text-xl font-bold">REFUSER</button>
             </div>
         </div>
     </div>
 
-    <div id="equipped-bar" class="hidden fixed bottom-2 left-2 z-30 max-w-sm bg-black amber-border-glow p-3 rounded-lg text-amber-100"></div>
+    <div id="equipped-bar" class="hidden fixed bottom-28 md:bottom-2 left-2 right-2 md:right-auto z-30 md:max-w-sm bg-black amber-border-glow p-3 rounded-lg text-amber-100"></div>
 
     <div id="inventory-overlay" class="hidden fixed inset-0 z-40 flex items-center justify-center bg-black bg-opacity-80 p-4">
         <section class="w-full max-w-3xl max-h-full overflow-y-auto amber-border-glow bg-black p-5 rounded-lg" aria-labelledby="inventory-title">
@@ -87,33 +98,42 @@
     <div class="crt-container flex-1 flex flex-col amber-border rounded-lg p-3 md:p-6 bg-black bg-opacity-90 relative overflow-hidden">
         
         <!-- HEADER / TOP STATUS BAR -->
-        <header class="relative z-10 flex justify-between items-center border-b-2 border-amber-500 pb-3 mb-4 tracking-wider text-xl md:text-2xl">
+        <header class="relative z-10 flex flex-wrap justify-between items-center gap-1 border-b-2 border-amber-500 pb-2 md:pb-3 mb-2 md:mb-4 tracking-wider text-base md:text-2xl">
             <div class="flex items-center space-x-3">
-                <span class="inline-block w-4 h-4 bg-amber-500 rounded-full animate-ping"></span>
+                <span class="inline-block w-3 h-3 md:w-4 md:h-4 bg-amber-500 rounded-full animate-ping"></span>
                 <span class="font-bold">ORDINATEUR-SYSTEME OST // BRTHR V2.6</span>
             </div>
             <div class="text-right">
-                <div id="active-session-code" class="text-amber-400 text-lg">SESSION : --</div>
-                <div id="connection-mode" class="text-amber-600 text-sm">RESEAU : EN ATTENTE</div>
+                <div id="active-session-code" class="text-amber-400 text-base md:text-lg">SESSION : --</div>
+                <div id="connection-mode" class="text-amber-600 text-xs md:text-sm">RESEAU : EN ATTENTE</div>
                 <div id="system-clock">--:--:-- UTC</div>
             </div>
-            <button id="inventory-tab-btn" onclick="toggleInventory()" class="btn-retro px-4 py-2 rounded hidden whitespace-nowrap">
-                SUR SOIT
-            </button>
         </header>
 
         <!-- MAIN DYNAMIC CONTENT CONTAINER -->
-        <main id="terminal-screen" class="relative z-10 flex-1 flex flex-col overflow-y-auto pr-2">
-            <!-- Le contenu HTML est généré dynamiquement par JavaScript -->
-        </main>
-        <div id="action-status" class="relative z-10 text-amber-400 text-lg min-h-6"></div>
-        <div id="player-views-panel" class="hidden relative z-10 amber-border bg-black p-3 mt-2 text-amber-200">
-            <div class="text-amber-400 font-bold mb-1">VISUALISATION DES JOUEURS</div>
-            <div id="player-views" class="text-lg"></div>
+        <div class="relative z-10 flex-1 flex min-h-0 gap-3">
+            <aside id="master-sidebar" class="hidden w-64 shrink-0 overflow-y-auto amber-border bg-black p-3 text-amber-200">
+                <div class="text-amber-400 font-bold mb-2">JOUEURS CONNECTÉS</div>
+                <ul id="master-players-list" class="space-y-3"></ul>
+                <div class="mt-4 border-t border-amber-700 pt-3">
+                    <div class="text-amber-400 font-bold mb-1">SAUVEGARDE</div>
+                    <div id="save-info" class="text-sm text-amber-200 mb-2"></div>
+                    <textarea id="save-note" rows="3" maxlength="300" placeholder="Note de partie…" class="w-full bg-black border border-amber-500 p-2 text-base text-amber-100 outline-none select-text"></textarea>
+                    <button id="save-session-button" type="button" class="btn-retro px-3 py-1 mt-2 text-base font-bold">SAUVEGARDER</button>
+                </div>
+            </aside>
+            <main id="terminal-screen" class="flex-1 min-w-0 flex flex-col overflow-y-auto pr-2">
+                <!-- Le contenu HTML est généré dynamiquement par JavaScript -->
+            </main>
+            <aside id="validation-column" class="hidden w-80 shrink-0 overflow-y-auto amber-border-glow bg-black p-3 text-amber-100">
+                <div class="text-amber-300 font-bold mb-2">DEMANDES À VALIDER</div>
+                <div id="validation-list" class="space-y-3"></div>
+            </aside>
         </div>
+        <div id="action-status" class="relative z-10 text-amber-400 text-base md:text-lg min-h-6"></div>
 
         <!-- FOOTER BAR -->
-        <footer class="relative z-10 mt-4 pt-3 border-t-2 border-amber-500 flex flex-wrap justify-between items-center text-lg md:text-xl gap-2">
+        <footer class="relative z-10 mt-2 md:mt-4 pt-3 border-t-2 border-amber-500 flex flex-wrap items-center text-lg md:text-xl gap-2">
             <div class="flex items-center space-x-4">
                 <button id="nav-home-btn" onclick="showHomeScreen()" class="btn-retro px-4 py-1 rounded hidden">
                     [F1] ACCUEIL
@@ -125,11 +145,15 @@
             <div id="players-bar" class="players-bar text-sm md:text-base tracking-widest uppercase">
                 <span id="players-teleprompter" class="players-teleprompter">JOUEURS CONNECTÉS : EN ATTENTE DE CONNEXION</span>
             </div>
-            <div class="text-amber-600 text-sm md:text-base tracking-widest uppercase overflow-hidden whitespace-nowrap">
+            <button id="inventory-tab-btn" onclick="toggleInventory()" class="btn-retro px-4 py-1 rounded hidden whitespace-nowrap">
+                SUR SOI
+            </button>
+            <div class="status-ticker text-amber-600 text-sm md:text-base tracking-widest uppercase overflow-hidden whitespace-nowrap">
                 <span class="teleprompter">STATUT:// ALIMENTATION: OK // MEMORY CORE: OK // SÉCURITÉ: ACTIVE // RÉSEAU: CONNECTÉ</span>
             </div>
         </footer>
     </div>
+
 
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
@@ -217,7 +241,97 @@
         let actionQueueRef = null;
         let inventoryOpsRef = null;
         let pendingActions = {};
-        let activeValidationActionId = null;
+        let validationErrors = {};
+        let sessionRef = null;
+        let savedSessions = {};
+        let transfersRef = null;
+        let opErrorsRef = null;
+        let transfers = {};
+        const processingTransfers = new Set();
+        const reportedTransfers = new Set();
+        let activeTransferId = null;
+
+        // Transfert d'objet entre joueurs : le destinataire accepte ou refuse, puis le navigateur du MJ déplace l'objet.
+        function requestTransfer(itemId, toUid) {
+            const status = document.getElementById('inventory-status');
+            const show = text => {
+                status.textContent = text;
+                getActionStatusElement().textContent = text;
+            };
+            const item = (currentState.inventories[playerSession?.uid] || []).find(candidate => candidate.id === itemId);
+            const target = connectedPlayers[toUid];
+            if (!transfersRef || !item || !target) return show('IMPOSSIBLE : objet ou joueur introuvable.');
+            if (item.equipped || item.slung) return show('IMPOSSIBLE : rangez d’abord cet objet.');
+            if (Object.values(transfers).some(transfer => transfer.fromUid === playerSession.uid && transfer.itemId === itemId && ['pending', 'accepted'].includes(transfer.status))) {
+                return show('IMPOSSIBLE : cet objet est déjà en cours d’envoi.');
+            }
+            transfersRef.push({
+                fromUid: playerSession.uid,
+                fromName: playerSession.pseudo,
+                toUid,
+                toName: target.pseudo,
+                itemId,
+                itemName: item.name,
+                status: 'pending',
+                createdAt: firebase.database.ServerValue.TIMESTAMP
+            }).catch(error => show(`ERREUR D’ENVOI : ${error.message}`));
+            show(`${item.name} PROPOSÉ À ${target.pseudo} : EN ATTENTE DE RÉPONSE.`);
+        }
+
+        function respondToTransfer(status) {
+            if (!activeTransferId || !transfersRef) return;
+            transfersRef.child(activeTransferId).update({ status });
+            activeTransferId = null;
+            document.getElementById('transfer-modal').classList.add('hidden');
+        }
+
+        function applyTransfer(transferId, transfer) {
+            processingTransfers.add(transferId);
+            let result = { status: 'done' };
+            try {
+                const source = [...(currentState.inventories[transfer.fromUid] || [])];
+                const index = source.findIndex(candidate => candidate.id === transfer.itemId);
+                const item = source[index];
+                if (!item || item.equipped || item.slung) throw new Error('objet indisponible');
+                source.splice(index, 1);
+                currentState.inventories[transfer.fromUid] = source;
+                currentState.inventories[transfer.toUid] = [...(currentState.inventories[transfer.toUid] || []), item];
+                currentState.inventoryOwners = { ...currentState.inventoryOwners, [transfer.toUid]: transfer.toName };
+                publishGameState();
+                refreshInventoryViews();
+            } catch (error) {
+                result = { status: 'failed', error: error.message };
+            }
+            transfersRef.child(transferId).update(result).finally(() => processingTransfers.delete(transferId));
+        }
+
+        function renderTransfers() {
+            if (!playerSession) return;
+            const entries = Object.entries(transfers).sort(([, first], [, second]) => (first.createdAt || 0) - (second.createdAt || 0));
+            const incoming = entries.find(([, transfer]) => transfer.toUid === playerSession.uid && transfer.status === 'pending');
+            const modal = document.getElementById('transfer-modal');
+            activeTransferId = incoming ? incoming[0] : null;
+            modal.classList.toggle('hidden', !incoming);
+            if (incoming) {
+                document.getElementById('transfer-modal-content').textContent = `${incoming[1].fromName} souhaite vous donner :\n${incoming[1].itemName}`;
+            }
+            entries.forEach(([transferId, transfer]) => {
+                if (canModifyGame() && transfer.status === 'accepted' && !processingTransfers.has(transferId)) {
+                    applyTransfer(transferId, transfer);
+                }
+                if (transfer.fromUid === playerSession.uid && ['done', 'rejected', 'failed'].includes(transfer.status) && !reportedTransfers.has(transferId)) {
+                    reportedTransfers.add(transferId);
+                    const message = transfer.status === 'done'
+                        ? `${transfer.itemName} ENVOYÉ À ${transfer.toName}.`
+                        : transfer.status === 'rejected'
+                            ? `${transfer.toName} A REFUSÉ ${transfer.itemName}.`
+                            : `ENVOI IMPOSSIBLE : ${transfer.error || 'erreur inconnue'}.`;
+                    document.getElementById('inventory-status').textContent = message;
+                    getActionStatusElement().textContent = message;
+                    transfersRef.child(transferId).remove();
+                }
+            });
+        }
 
         function normalizePseudo(value) {
             return value.trim().replace(/\s+/g, ' ').slice(0, 24);
@@ -246,7 +360,10 @@
             return pseudo.toLocaleLowerCase('fr-FR') === MASTER_NAME.toLocaleLowerCase('fr-FR');
         }
 
+        let connectedPlayers = {};
+
         function updatePlayersDisplay(players) {
+            connectedPlayers = players || {};
             const playerNames = Object.values(players || {})
                 .map(player => player.role === 'master'
                     ? `MJ / Maître de jeu / ${player.pseudo}`
@@ -258,11 +375,12 @@
                 : 'JOUEURS CONNECTÉS : AUCUN';
             document.getElementById('players-teleprompter').textContent = text;
             updatePlayerViews(players);
+            if (playerSession && !document.getElementById('inventory-overlay').classList.contains('hidden')) renderInventoryContents();
         }
 
         function getViewLabel(state) {
             if (!state || state.view === 'home') return 'ACCUEIL';
-            if (state.view === 'inventory') return 'SUR SOIT';
+            if (state.view === 'inventory') return 'SUR SOI';
             const globalData = state.currentGlobalKey ? DATA_ZONES[state.currentGlobalKey] : null;
             const zone = globalData?.zones.find(candidate => candidate.id === state.currentZoneId);
             const report = zone?.reports.find(candidate => candidate.id === state.currentReportId);
@@ -271,31 +389,74 @@
             return globalData?.title || 'NAVIGATION';
         }
 
-        function updatePlayerViews(players) {
-            const panel = document.getElementById('player-views-panel');
-            const container = document.getElementById('player-views');
-            if (!panel || !container) return;
+        function hasLitLamp(uid) {
+            return (currentState.inventories?.[uid] || []).some(item => item.lit || getMountedLight(item)?.lit);
+        }
+
+        // Barre latérale du MJ : un joueur par entrée, avec un point vert quand une de ses lampes est allumée.
+        function updatePlayerViews(players = connectedPlayers) {
+            const sidebar = document.getElementById('master-sidebar');
+            const list = document.getElementById('master-players-list');
+            if (!sidebar || !list) return;
             if (playerSession?.role !== 'master') {
-                panel.classList.add('hidden');
+                sidebar.classList.add('hidden');
                 return;
             }
-            const views = Object.values(players || {})
-                .filter(player => player.role !== 'master')
-                .sort((first, second) => (first.pseudo || '').localeCompare(second.pseudo || '', 'fr'))
-                .map(player => `${player.pseudo} : ${player.viewLabel || 'ACCUEIL'}`);
-            container.textContent = views.length ? views.join(' // ') : 'AUCUN JOUEUR CONNECTE';
-            panel.classList.remove('hidden');
+            list.replaceChildren();
+            const entries = Object.entries(players || {})
+                .filter(([, player]) => player.role !== 'master')
+                .sort(([, first], [, second]) => (first.pseudo || '').localeCompare(second.pseudo || '', 'fr'));
+            if (entries.length === 0) {
+                list.appendChild(createInventoryElement('li', 'text-amber-600', 'AUCUN JOUEUR CONNECTÉ'));
+            }
+            entries.forEach(([uid, player]) => {
+                const entry = createInventoryElement('li', 'border-b border-amber-800 pb-2');
+                const title = createInventoryElement('div', 'flex items-center gap-2 font-bold text-amber-100');
+                const dot = createInventoryElement('span', `inline-block w-3 h-3 rounded-full ${hasLitLamp(uid) ? 'bg-green-500' : 'bg-amber-900'}`);
+                dot.title = hasLitLamp(uid) ? 'Lampe allumée' : 'Aucune lampe allumée';
+                title.append(dot, createInventoryElement('span', '', player.pseudo || 'Joueur'));
+                entry.append(
+                    title,
+                    createInventoryElement('div', 'text-sm text-amber-400', `${player.faction === 'military' ? 'MILITAIRE' : 'CIVIL'} / ${player.characterRole || ''}`),
+                    createInventoryElement('div', 'text-sm text-amber-200', player.viewLabel || 'ACCUEIL')
+                );
+                list.appendChild(entry);
+            });
+            sidebar.classList.remove('hidden');
+        }
+
+        // Dernière page de chaque joueur, conservée sous son pseudo pour survivre à la déconnexion et à la reprise de table.
+        let playerViewRef = null;
+
+        function getPlayerViewKey(pseudo) {
+            return pseudo.toLocaleLowerCase('fr-FR').replace(/[.$#[\]/]/g, '_');
         }
 
         function publishPlayerView() {
             if (!playerPresenceRef || !playerSession) return;
-            playerPresenceRef.update({
+            const view = {
                 view: currentState.view,
                 currentGlobalKey: currentState.currentGlobalKey,
                 currentZoneId: currentState.currentZoneId,
                 currentReportId: currentState.currentReportId,
                 viewLabel: getViewLabel(currentState)
+            };
+            playerPresenceRef.update(view);
+            if (playerViewRef && playerSession.role !== 'master') playerViewRef.set(view);
+        }
+
+        async function restorePlayerView() {
+            if (!playerViewRef || playerSession.role === 'master') return;
+            const saved = (await playerViewRef.once('value')).val();
+            if (!saved || !['global_zone', 'zone_detail', 'report_detail'].includes(saved.view)) return;
+            if (!DATA_ZONES[saved.currentGlobalKey]) return;
+            Object.assign(currentState, {
+                view: saved.view,
+                currentGlobalKey: saved.currentGlobalKey,
+                currentZoneId: saved.currentZoneId || null,
+                currentReportId: saved.currentReportId || null
             });
+            renderSharedState();
         }
 
         function getSharedState() {
@@ -329,6 +490,7 @@
 
         function refreshInventoryViews() {
             renderEquippedBar();
+            updatePlayerViews();
             if (!document.getElementById('inventory-overlay').classList.contains('hidden')) renderInventoryContents();
         }
 
@@ -348,6 +510,42 @@
             refreshInventoryViews();
         }
 
+        // Panneau « ÉQUIPÉ » : déplaçable par son en-tête et repliable pour ne pas masquer l'interface.
+        const equippedPanel = { collapsed: false, x: null, y: null };
+
+        function applyEquippedPanelPosition(bar) {
+            if (equippedPanel.x === null) return;
+            const maxX = Math.max(0, window.innerWidth - bar.offsetWidth);
+            const maxY = Math.max(0, window.innerHeight - bar.offsetHeight);
+            bar.style.left = `${Math.min(Math.max(0, equippedPanel.x), maxX)}px`;
+            bar.style.top = `${Math.min(Math.max(0, equippedPanel.y), maxY)}px`;
+            bar.style.right = 'auto';
+            bar.style.bottom = 'auto';
+            bar.style.maxWidth = 'min(24rem, calc(100vw - 1rem))';
+        }
+
+        function initEquippedPanelDrag() {
+            const bar = document.getElementById('equipped-bar');
+            let drag = null;
+            bar.addEventListener('pointerdown', event => {
+                if (!event.target.closest('[data-drag-handle]') || event.target.closest('button')) return;
+                const rect = bar.getBoundingClientRect();
+                drag = { dx: event.clientX - rect.left, dy: event.clientY - rect.top };
+                bar.setPointerCapture(event.pointerId);
+                event.preventDefault();
+            });
+            bar.addEventListener('pointermove', event => {
+                if (!drag) return;
+                equippedPanel.x = event.clientX - drag.dx;
+                equippedPanel.y = event.clientY - drag.dy;
+                applyEquippedPanelPosition(bar);
+            });
+            const endDrag = () => { drag = null; };
+            bar.addEventListener('pointerup', endDrag);
+            bar.addEventListener('pointercancel', endDrag);
+            window.addEventListener('resize', () => applyEquippedPanelPosition(bar));
+        }
+
         function renderEquippedBar() {
             const bar = document.getElementById('equipped-bar');
             if (!bar) return;
@@ -358,7 +556,25 @@
             bar.classList.toggle('hidden', equipped.length === 0 && slung.length === 0);
             if (equipped.length === 0 && slung.length === 0) return;
 
-            bar.appendChild(createInventoryElement('div', 'text-amber-400 font-bold mb-1', `ÉQUIPÉ — MAINS ${getHandsUsed(items)}/${MAX_HANDS}`));
+            const anyLit = items.some(item => item.lit || getMountedLight(item)?.lit);
+            const header = createInventoryElement('div', 'flex items-center justify-between gap-3 cursor-move touch-none');
+            header.dataset.dragHandle = '1';
+            const title = createInventoryElement('div', 'text-amber-400 font-bold', `⠿ ÉQUIPÉ — MAINS ${getHandsUsed(items)}/${MAX_HANDS}`);
+            if (anyLit) title.appendChild(createInventoryElement('span', 'inline-block w-2 h-2 rounded-full bg-green-500 ml-2'));
+            const collapseButton = createInventoryElement('button', 'amber-border px-2 text-amber-100 hover:bg-amber-900', equippedPanel.collapsed ? '▲' : '▼');
+            collapseButton.type = 'button';
+            collapseButton.title = equippedPanel.collapsed ? 'Déplier' : 'Replier';
+            collapseButton.addEventListener('click', () => {
+                equippedPanel.collapsed = !equippedPanel.collapsed;
+                renderEquippedBar();
+            });
+            header.append(title, collapseButton);
+            bar.appendChild(header);
+            if (equippedPanel.collapsed) {
+                applyEquippedPanelPosition(bar);
+                return;
+            }
+            bar.appendChild(createInventoryElement('div', 'mb-1'));
             const addButton = (container, label, handler, active = false) => {
                 const button = createInventoryElement('button', `amber-border px-3 py-1 text-amber-100 hover:bg-amber-900${active ? ' bg-amber-800' : ''}`, label);
                 button.type = 'button';
@@ -408,11 +624,89 @@
                 row.appendChild(actions);
                 bar.appendChild(row);
             });
+            applyEquippedPanelPosition(bar);
         }
 
+        let lastSavedAt = 0;
+
+        // La partie vit dans Firebase sous le numéro de table : chaque publication met à jour la date de sauvegarde.
         function publishGameState() {
             if (gameStateRef && playerSession?.role === 'master') {
                 gameStateRef.set(getSharedState());
+                if (Date.now() - lastSavedAt > 5000) touchSessionSave();
+            }
+        }
+
+        function formatSaveDate(timestamp) {
+            return timestamp ? new Date(timestamp).toLocaleString('fr-FR') : 'jamais';
+        }
+
+        function touchSessionSave(extra = {}) {
+            if (!sessionRef) return Promise.resolve();
+            lastSavedAt = Date.now();
+            return sessionRef.update({ savedAt: firebase.database.ServerValue.TIMESTAMP, ...extra })
+                .then(() => sessionRef.once('value'))
+                .then(snapshot => renderSaveInfo(snapshot.val()));
+        }
+
+        function renderSaveInfo(session) {
+            const info = document.getElementById('save-info');
+            if (!info || !session) return;
+            info.textContent = `Table ${session.code} — créée : ${formatSaveDate(session.createdAt)} — dernière sauvegarde : ${formatSaveDate(session.savedAt)}`;
+        }
+
+        async function loadSavedSessionsList() {
+            const select = document.getElementById('saved-sessions-select');
+            const errorElement = document.getElementById('session-error');
+            const password = document.getElementById('master-password').value;
+            errorElement.textContent = '';
+            if (!isFirebaseConfigured) return void (errorElement.textContent = 'FIREBASE NON CONFIGURÉ.');
+            if (!password) return void (errorElement.textContent = 'ENTREZ LE MOT DE PASSE DE DIEU POUR VOIR LES SAUVEGARDES.');
+            try {
+                await firebase.auth().signInWithEmailAndPassword(MASTER_EMAIL, password);
+                const snapshot = await firebase.database().ref('games').once('value');
+                savedSessions = {};
+                Object.entries(snapshot.val() || {}).forEach(([code, game]) => {
+                    if (game?.session) savedSessions[code] = game.session;
+                });
+                select.replaceChildren(new Option('NOUVELLE PARTIE', ''));
+                Object.entries(savedSessions)
+                    .sort(([, first], [, second]) => (second.savedAt || second.createdAt || 0) - (first.savedAt || first.createdAt || 0))
+                    .forEach(([code, session]) => select.appendChild(new Option(`Table ${code} — ${formatSaveDate(session.savedAt || session.createdAt)}${session.note ? ` — ${session.note.slice(0, 30)}` : ''}`, code)));
+                errorElement.textContent = Object.keys(savedSessions).length ? '' : 'AUCUNE SAUVEGARDE EXISTANTE.';
+            } catch (error) {
+                errorElement.textContent = 'LECTURE DES SAUVEGARDES REFUSÉE : VÉRIFIEZ LE MOT DE PASSE.';
+            }
+        }
+
+        function selectSavedSession() {
+            const code = document.getElementById('saved-sessions-select').value;
+            const info = document.getElementById('saved-session-info');
+            const session = savedSessions[code];
+            info.classList.toggle('hidden', !session);
+            if (!session) return;
+            document.getElementById('master-session-code').value = code;
+            document.getElementById('saved-session-details').textContent = [
+                `Table : ${code}`,
+                `Créée : ${formatSaveDate(session.createdAt)}`,
+                `Dernière sauvegarde : ${formatSaveDate(session.savedAt)}`,
+                `Note : ${session.note || '—'}`
+            ].join('\n');
+        }
+
+        async function deleteSavedSession() {
+            const select = document.getElementById('saved-sessions-select');
+            const code = select.value;
+            if (!savedSessions[code] || !confirm(`Supprimer définitivement la sauvegarde de la table ${code} ?`)) return;
+            try {
+                await firebase.database().ref(`games/${code}`).remove();
+                delete savedSessions[code];
+                select.querySelector(`option[value="${code}"]`)?.remove();
+                select.value = '';
+                document.getElementById('master-session-code').value = generateSessionCode();
+                selectSavedSession();
+            } catch (error) {
+                document.getElementById('session-error').textContent = `SUPPRESSION REFUSÉE : ${error.message}`;
             }
         }
 
@@ -802,7 +1096,7 @@
         function getAmmoPanel() {
             let panel = document.getElementById('ammo-transfer-panel');
             if (panel) return panel;
-            panel = createInventoryElement('div', 'fixed bottom-4 right-4 z-50 amber-border bg-black p-3 text-amber-100 hidden');
+            panel = createInventoryElement('div', 'fixed top-2 right-2 z-50 amber-border bg-black p-3 text-amber-100 hidden');
             panel.id = 'ammo-transfer-panel';
             panel.style.minWidth = '260px';
             const title = createInventoryElement('div', 'font-bold text-amber-400', '');
@@ -922,6 +1216,9 @@
                 refreshInventoryViews();
             } catch (error) {
                 console.warn('Opération d’inventaire ignorée :', error.message);
+                // Le joueur a déjà appliqué l'action localement : on le resynchronise et on lui explique le refus.
+                publishGameState();
+                opErrorsRef?.child(op.playerUid).set({ message: error.message, at: firebase.database.ServerValue.TIMESTAMP });
             }
         }
 
@@ -1082,6 +1379,11 @@
                                     () => requestInventoryOp('recharge', battery.id, item.id)
                                 ));
                             }
+                            if (!item.equipped && !item.slung && transfersRef) {
+                                Object.entries(connectedPlayers)
+                                    .filter(([uid, player]) => uid !== playerSession.uid && player.role !== 'master')
+                                    .forEach(([uid, player]) => makeButton(`Envoyer à ${player.pseudo}`, () => requestTransfer(item.id, uid)));
+                            }
                             if (actions.childElementCount > 0) row.appendChild(actions);
                         }
                         list.appendChild(row);
@@ -1176,40 +1478,54 @@
                     : `ACTION REFUSEE PAR LE MJ : ${actionLabel}`;
         }
 
+        // Colonne de droite du MJ : toutes les demandes en attente, empilées et validables dans l'ordre voulu.
         function renderMasterValidation() {
             if (!canModifyGame()) return;
-            const actionEntry = Object.entries(pendingActions).find(([, action]) => action.status === 'pending');
-            const modal = document.getElementById('action-validation-modal');
-            if (!actionEntry) {
-                activeValidationActionId = null;
-                modal.classList.add('hidden');
-                return;
-            }
-            const [actionId, action] = actionEntry;
-            activeValidationActionId = actionId;
-            const actionLabel = action.targetType === 'door'
-                ? 'FORCAGE DE PORTE'
-                : action.targetType === 'loot'
-                    ? 'OUVERTURE DU BUTIN'
-                    : action.targetType === 'recharge' ? 'TEST DE COMTECH : RECHARGE DE LAMPE' : 'PRISE D’OBJET';
-            const pickupSource = action.targetType === 'loot_pickup'
-                ? getLootSource(action.globalKey, action.zoneId, action.groupId, action.itemIndex)
-                : null;
-            const pickupContent = pickupSource
-                ? LOOT_CATALOG[getLootCatalogId(pickupSource.loot)]?.content
-                : null;
-            document.getElementById('action-validation-content').textContent = [
-                `Joueur : ${action.playerName}`,
-                `Action : ${actionLabel}`,
-                `Cible : ${action.targetLabel}`,
-                ...(action.targetType === 'recharge' ? ['Le joueur a-t-il réussi son test de Comtech ?'] : []),
-                ...(action.targetType === 'loot_pickup' ? [
-                    `Quantité : ${action.quantity}`,
-                    ...(pickupContent ? [`Contenu à l’acquisition : ${pickupContent.capacity}/${pickupContent.capacity} ${pickupContent.unit}`] : [])
-                ] : action.targetType === 'recharge' ? [] : [`Niveau proposé : ${action.level}/5`])
-            ].join('\n');
-            document.getElementById('action-validation-error').textContent = '';
-            modal.classList.remove('hidden');
+            const column = document.getElementById('validation-column');
+            const list = document.getElementById('validation-list');
+            const pending = Object.entries(pendingActions)
+                .filter(([, action]) => action.status === 'pending')
+                .sort(([, first], [, second]) => (first.createdAt || 0) - (second.createdAt || 0));
+            list.replaceChildren();
+            column.classList.toggle('hidden', pending.length === 0);
+            pending.forEach(([actionId, action]) => {
+                const actionLabel = action.targetType === 'door'
+                    ? 'FORCAGE DE PORTE'
+                    : action.targetType === 'loot'
+                        ? 'OUVERTURE DU BUTIN'
+                        : action.targetType === 'recharge' ? 'TEST DE COMTECH : RECHARGE DE LAMPE' : 'PRISE D’OBJET';
+                const pickupSource = action.targetType === 'loot_pickup'
+                    ? getLootSource(action.globalKey, action.zoneId, action.groupId, action.itemIndex)
+                    : null;
+                const pickupContent = pickupSource
+                    ? LOOT_CATALOG[getLootCatalogId(pickupSource.loot)]?.content
+                    : null;
+                const pickupAmount = pickupContent && isAmmoBoxLoot(pickupSource.loot)
+                    ? getLootAmmoCount(pickupSource.loot, currentState.unlockedLoot[getLootGroupKey(action.zoneId, action.groupId)])
+                    : pickupContent?.capacity;
+                const lines = [
+                    `Joueur : ${action.playerName}`,
+                    `Action : ${actionLabel}`,
+                    `Cible : ${action.targetLabel}`,
+                    ...(action.targetType === 'recharge' ? ['Le joueur a-t-il réussi son test de Comtech ?'] : []),
+                    ...(action.targetType === 'loot_pickup' ? [
+                        `Quantité : ${action.quantity}`,
+                        ...(pickupContent ? [`Contenu à l’acquisition : ${pickupAmount}/${pickupContent.capacity} ${pickupContent.unit}`] : [])
+                    ] : action.targetType === 'recharge' ? [] : [`Niveau proposé : ${action.level}/5`])
+                ];
+                const card = createInventoryElement('div', 'amber-border p-3');
+                card.appendChild(createInventoryElement('div', 'text-base text-amber-100 whitespace-pre-line', lines.join('\n')));
+                if (validationErrors[actionId]) card.appendChild(createInventoryElement('p', 'text-red-400 mt-2', validationErrors[actionId]));
+                const buttons = createInventoryElement('div', 'flex flex-wrap gap-2 mt-3');
+                [['ACCEPTER', 'approved'], ['REFUSER', 'rejected']].forEach(([label, status]) => {
+                    const button = createInventoryElement('button', 'btn-retro px-3 py-1 text-lg font-bold', label);
+                    button.type = 'button';
+                    button.addEventListener('click', () => resolveAction(actionId, status));
+                    buttons.appendChild(button);
+                });
+                card.appendChild(buttons);
+                list.appendChild(card);
+            });
         }
 
         function applyApprovedAction(action, actionId) {
@@ -1240,14 +1556,13 @@
         async function resolveAction(actionId, status) {
             if (!canModifyGame() || !actionQueueRef || !pendingActions[actionId]) return;
             const action = pendingActions[actionId];
-            activeValidationActionId = null;
-            document.getElementById('action-validation-error').textContent = '';
+            delete validationErrors[actionId];
             try {
                 if (status === 'approved') applyApprovedAction(action, actionId);
                 await actionQueueRef.child(actionId).update({ status, resolvedAt: firebase.database.ServerValue.TIMESTAMP });
             } catch (error) {
-                activeValidationActionId = actionId;
-                document.getElementById('action-validation-error').textContent = `ERREUR : ${error.message}`;
+                validationErrors[actionId] = `ERREUR : ${error.message}`;
+                renderMasterValidation();
             }
         }
 
@@ -1334,11 +1649,24 @@
                     : await auth.signInAnonymously();
                 const role = isMasterPseudo(pseudo) ? 'master' : 'player';
                 const roleData = getCharacterRole(characterRole);
-                playerSession = { pseudo, role, characterRole: role === 'master' ? 'Maître de jeu' : roleData.roleName, faction: role === 'master' ? 'master' : roleData.faction, sessionCode, uid: credential.user.uid };
+                // L'identité de jeu d'un joueur est son pseudo : la connexion anonyme Firebase est conservée par le navigateur et ferait partager inventaire et équipement entre deux pseudos.
+                const gameUid = role === 'master' ? credential.user.uid : `p_${getPlayerViewKey(pseudo)}`;
+                playerSession = { pseudo, role, characterRole: role === 'master' ? 'Maître de jeu' : roleData.roleName, faction: role === 'master' ? 'master' : roleData.faction, sessionCode, uid: gameUid };
 
                 const gameRef = firebase.database().ref(getGamePath());
                 if (role === 'master') {
-                    await gameRef.child('session').set({ code: sessionCode, createdAt: firebase.database.ServerValue.TIMESTAMP });
+                    sessionRef = gameRef.child('session');
+                    const existing = await sessionRef.once('value');
+                    if (existing.exists()) {
+                        await sessionRef.update({ code: sessionCode });
+                        const savedState = await gameRef.child('state').once('value');
+                        if (savedState.exists()) applySharedSnapshot(savedState.val());
+                    } else {
+                        await sessionRef.set({ code: sessionCode, createdAt: firebase.database.ServerValue.TIMESTAMP });
+                    }
+                    const sessionData = (await sessionRef.once('value')).val();
+                    renderSaveInfo(sessionData);
+                    document.getElementById('save-note').value = sessionData?.note || '';
                 } else {
                     const sessionSnapshot = await gameRef.child('session').once('value');
                     if (!sessionSnapshot.exists() || sessionSnapshot.val().code !== sessionCode) {
@@ -1349,6 +1677,8 @@
                 playerPresenceRef = playerRef;
                 await playerRef.set({ pseudo, role, characterRole: playerSession.characterRole, faction: playerSession.faction, connected: true });
                 playerRef.onDisconnect().remove();
+                playerViewRef = gameRef.child(`playerViews/${getPlayerViewKey(pseudo)}`);
+                await restorePlayerView();
                 actionQueueRef = gameRef.child('pendingActions');
                 actionQueueRef.on('value', snapshot => {
                     pendingActions = snapshot.val() || {};
@@ -1357,6 +1687,22 @@
                 });
                 gameStateRef = gameRef.child('state');
                 inventoryOpsRef = gameRef.child('inventoryOps');
+                transfersRef = gameRef.child('transfers');
+                opErrorsRef = gameRef.child('opErrors');
+                if (playerSession.role !== 'master') {
+                    opErrorsRef.child(playerSession.uid).on('value', snapshot => {
+                        const refusal = snapshot.val();
+                        if (!refusal) return;
+                        const text = `REFUSÉ PAR LE MJ : ${refusal.message}`;
+                        document.getElementById('inventory-status').textContent = text;
+                        getActionStatusElement().textContent = text;
+                        snapshot.ref.remove();
+                    });
+                }
+                transfersRef.on('value', snapshot => {
+                    transfers = snapshot.val() || {};
+                    renderTransfers();
+                });
                 if (playerSession.role === 'master') inventoryOpsRef.on('child_added', handleInventoryOpAdded);
                 gameStateRef.on('value', snapshot => {
                     if (playerSession.role === 'master') return;
@@ -1390,12 +1736,18 @@
             const characterRoleRow = document.getElementById('character-role-row');
             const characterRoleSelect = document.getElementById('character-role');
             const passwordRow = document.getElementById('master-password-row');
-            document.getElementById('approve-action-button').addEventListener('click', () => {
-                if (activeValidationActionId) resolveAction(activeValidationActionId, 'approved');
+            document.getElementById('load-sessions-button').addEventListener('click', loadSavedSessionsList);
+            initEquippedPanelDrag();
+            document.getElementById('saved-sessions-select').addEventListener('change', selectSavedSession);
+            document.getElementById('delete-session-button').addEventListener('click', deleteSavedSession);
+            document.getElementById('save-session-button').addEventListener('click', () => {
+                const status = getActionStatusElement();
+                touchSessionSave({ note: document.getElementById('save-note').value.trim().slice(0, 300) })
+                    .then(() => { status.textContent = 'PARTIE SAUVEGARDÉE.'; })
+                    .catch(error => { status.textContent = `SAUVEGARDE IMPOSSIBLE : ${error.message}`; });
             });
-            document.getElementById('reject-action-button').addEventListener('click', () => {
-                if (activeValidationActionId) resolveAction(activeValidationActionId, 'rejected');
-            });
+            document.getElementById('accept-transfer-button').addEventListener('click', () => respondToTransfer('accepted'));
+            document.getElementById('reject-transfer-button').addEventListener('click', () => respondToTransfer('rejected'));
             Object.entries(CHARACTER_ROLES).forEach(([, section]) => {
                 const group = document.createElement('optgroup');
                 group.label = section.label;
@@ -1426,6 +1778,8 @@
                 sessionCodeInput.value = normalizeSessionCode(sessionCodeInput.value);
             });
             generateSessionCodeButton.addEventListener('click', () => {
+                document.getElementById('saved-sessions-select').value = '';
+                selectSavedSession();
                 masterSessionCodeInput.value = generateSessionCode();
                 masterSessionCodeInput.focus();
             });
