@@ -86,6 +86,17 @@
         </div>
     </div>
 
+    <div id="radar-panel" class="hidden fixed top-24 left-2 z-30 w-52 bg-black amber-border-glow p-2 rounded-lg text-green-300">
+        <div id="radar-header" class="flex items-center justify-between gap-2 cursor-move touch-none text-sm font-bold">
+            <span>⠿ DÉTECTEUR</span>
+            <button id="radar-collapse" type="button" class="amber-border px-2 text-amber-100">▼</button>
+        </div>
+        <div id="radar-body">
+            <canvas id="radar-canvas" width="300" height="300" class="w-full aspect-square mt-1 bg-black"></canvas>
+            <div id="radar-readout" class="text-center text-lg font-bold">AUCUN CONTACT</div>
+        </div>
+    </div>
+
     <div id="equipped-bar" class="hidden fixed bottom-28 md:bottom-2 left-2 right-2 md:right-auto z-30 md:max-w-sm bg-black amber-border-glow p-3 rounded-lg text-amber-100"></div>
 
     <div id="inventory-overlay" class="hidden fixed inset-0 z-40 flex items-center justify-center bg-black bg-opacity-80 p-4">
@@ -137,7 +148,36 @@
                 <!-- Le contenu HTML est généré dynamiquement par JavaScript -->
             </main>
             <aside id="validation-column" class="hidden w-80 shrink-0 overflow-y-auto amber-border-glow bg-black p-3 text-amber-100">
-                <div class="text-amber-300 font-bold mb-2">DEMANDES À VALIDER</div>
+                <section id="master-radar-section" class="hidden mb-4 border-b border-amber-700 pb-3">
+                    <div class="text-green-300 font-bold mb-1">DÉTECTEUR DE MOUVEMENT <span id="master-radar-count" class="text-sm"></span></div>
+                    <canvas id="master-radar-canvas" width="300" height="300" class="w-full aspect-square bg-black cursor-crosshair"></canvas>
+                    <div class="text-xs text-amber-400 mb-2">Cliquez sur le radar pour placer un contact (portée 25 m, haut = devant le groupe).</div>
+                    <div class="grid grid-cols-2 gap-2 text-sm">
+                        <label>Signal
+                            <select id="motion-intensity" class="w-full bg-black border border-amber-500 text-amber-100">
+                                <option value="1">Faible</option>
+                                <option value="2" selected>Moyen</option>
+                                <option value="3">Fort</option>
+                            </select>
+                        </label>
+                        <label>Durée
+                            <select id="motion-ttl" class="w-full bg-black border border-amber-500 text-amber-100">
+                                <option value="10000">10 s</option>
+                                <option value="30000" selected>30 s</option>
+                                <option value="60000">1 min</option>
+                                <option value="0">Jusqu’au retrait</option>
+                            </select>
+                        </label>
+                        <label class="flex items-center gap-1"><input id="motion-jitter" type="checkbox"> Saccadé</label>
+                        <label class="flex items-center gap-1"><input id="motion-blur" type="checkbox"> Brouillé</label>
+                    </div>
+                    <div class="flex gap-2 mt-2">
+                        <button id="motion-saturation" type="button" class="btn-retro px-2 py-1 text-sm font-bold flex-1">SATURATION : NON</button>
+                        <button id="motion-clear" type="button" class="btn-retro px-2 py-1 text-sm font-bold flex-1">TOUT EFFACER</button>
+                    </div>
+                    <ul id="motion-contacts" class="mt-2 space-y-1 text-sm"></ul>
+                </section>
+                <div id="validation-title" class="text-amber-300 font-bold mb-2">DEMANDES À VALIDER</div>
                 <div id="validation-list" class="space-y-3"></div>
             </aside>
         </div>
@@ -541,6 +581,7 @@
         function refreshInventoryViews() {
             renderEquippedBar();
             updatePlayerViews();
+            updateRadarVisibility();
             if (!document.getElementById('inventory-overlay').classList.contains('hidden')) renderInventoryContents();
         }
 
@@ -644,9 +685,9 @@
                     if (mountedLight) {
                         addButton(actions, lampLabel(mountedLight, 'la lampe'), () => requestInventoryOp('toggle_light', `mounted:${item.id}`), mountedLight.lit);
                     }
-                    if (item.attachments?.sangle) addButton(actions, 'Mettre dans le dos', () => requestInventoryOp('sling', item.id));
                 }
-                if (def.lamp) addButton(actions, lampLabel(item, 'la lampe'), () => requestInventoryOp('toggle_light', item.id), item.lit);
+                if (item.attachments?.sangle) addButton(actions, 'Mettre dans le dos', () => requestInventoryOp('sling', item.id));
+                if (def.lamp) addButton(actions, lampLabel(item, def.lamp.detector ? 'le détecteur' : 'la lampe'), () => requestInventoryOp('toggle_light', item.id), item.lit);
                 addButton(actions, 'Ranger', () => requestInventoryOp('unequip', item.id));
                 row.appendChild(actions);
                 bar.appendChild(row);
@@ -655,20 +696,23 @@
                 const row = createInventoryElement('div', 'mb-2');
                 row.appendChild(createInventoryElement('div', 'text-amber-100 font-bold', `${item.name} — DANS LE DOS`));
                 const actions = createInventoryElement('div', 'flex flex-wrap gap-2 mt-1');
-                const backLight = getMountedLight(item);
-                if (backLight) {
+                const addBackLamp = (lamp, reference, label) => {
                     const lampWrapper = createInventoryElement('div', 'flex flex-col');
-                    const lampButton = createInventoryElement('button', `amber-border px-3 py-1 text-amber-100 hover:bg-amber-900${backLight.lit ? ' bg-amber-800' : ''}`, `${backLight.lit ? 'Éteindre' : 'Allumer'} la lampe`);
+                    const lampButton = createInventoryElement('button', `amber-border px-3 py-1 text-amber-100 hover:bg-amber-900${lamp.lit ? ' bg-amber-800' : ''}`, `${lamp.lit ? 'Éteindre' : 'Allumer'} ${label}`);
                     lampButton.type = 'button';
-                    lampButton.addEventListener('click', () => requestInventoryOp('toggle_light', `mounted:${item.id}`));
-                    const percent = Math.max(0, Math.min(100, (backLight.content.current / backLight.content.capacity) * 100));
+                    lampButton.addEventListener('click', () => requestInventoryOp('toggle_light', reference));
+                    const percent = Math.max(0, Math.min(100, (lamp.content.current / lamp.content.capacity) * 100));
                     const track = createInventoryElement('div', 'w-full h-1 bg-amber-950 mt-1');
                     const fill = createInventoryElement('div', `h-1 ${percent <= 20 ? 'bg-red-500' : 'bg-amber-400'}`);
                     fill.style.width = `${percent}%`;
                     track.appendChild(fill);
                     lampWrapper.append(lampButton, track);
                     actions.appendChild(lampWrapper);
-                }
+                };
+                const backLight = getMountedLight(item);
+                if (backLight) addBackLamp(backLight, `mounted:${item.id}`, 'la lampe');
+                const backDef = LOOT_CATALOG[item.catalogId]?.lamp;
+                if (backDef) addBackLamp(item, item.id, backDef.detector ? 'le détecteur' : 'la lampe');
                 addButton(actions, 'Reprendre en main', () => requestInventoryOp('equip', item.id));
                 addButton(actions, 'Ranger', () => requestInventoryOp('unequip', item.id));
                 row.appendChild(actions);
@@ -930,7 +974,7 @@
         function canAttach(weapon, accessory) {
             const weaponDef = LOOT_CATALOG[weapon?.catalogId];
             const attachment = LOOT_CATALOG[accessory?.catalogId]?.attachment;
-            if (!weaponDef?.weapon || !attachment || !(weaponDef.slots || []).includes(attachment.slot)) return false;
+            if (!weaponDef?.slots || !attachment || !weaponDef.slots.includes(attachment.slot)) return false;
             if (attachment.items?.includes(weapon.catalogId)) return true;
             return !!attachment.requiresTags && attachment.requiresTags.every(tag => (weaponDef.tags || []).includes(tag));
         }
@@ -955,7 +999,23 @@
                 return mountedLight ? { lamp: mountedLight, equipped: !!(weapon.equipped || weapon.slung) } : null;
             }
             const item = items.find(candidate => candidate.id === reference);
-            return item && LOOT_CATALOG[item.catalogId]?.lamp ? { lamp: item, equipped: !!item.equipped } : null;
+            return item && LOOT_CATALOG[item.catalogId]?.lamp ? { lamp: item, equipped: !!(item.equipped || item.slung) } : null;
+        }
+
+        // Une batterie 18V compatible avec l'appareil visé ; `native` = batterie d'origine (aucun test requis).
+        function getRechargeInfo(battery, lamp) {
+            const lampDef = LOOT_CATALOG[lamp?.catalogId]?.lamp;
+            const batteryDef = LOOT_CATALOG[battery?.catalogId];
+            if (!lampDef || !batteryDef?.recharger) return { compatible: false, native: false };
+            const compatible = !lampDef.requiresBattery || (batteryDef.batteryTags || []).includes(lampDef.requiresBattery);
+            return { compatible, native: !!lampDef.nativeBattery && battery.catalogId === lampDef.nativeBattery };
+        }
+
+        // Un joueur recharge sans test de Comtech uniquement avec la batterie d'origine de l'appareil.
+        function isNativeRecharge(items, op) {
+            const battery = items.find(candidate => candidate.id === op.itemId);
+            const target = resolveLamp(items, op.otherId);
+            return !!battery && !!target && getRechargeInfo(battery, target.lamp).native;
         }
 
         function settleLamp(lamp, now = Date.now()) {
@@ -1005,25 +1065,25 @@
                 delete item.slung;
                 message = `${item.name} RANGÉ.`;
             } else if (op.type === 'sling') {
-                if (!item?.equipped) throw new Error('Équipez d’abord cette arme.');
-                if (!item.attachments?.sangle) throw new Error('Cette arme n’a pas de sangle.');
-                if (items.some(other => other.slung)) throw new Error('Le dos est déjà occupé par une autre arme.');
+                if (!item?.equipped) throw new Error('Équipez d’abord cet objet.');
+                if (!item.attachments?.sangle) throw new Error('Cet objet n’a pas de sangle.');
+                if (items.some(other => other.slung)) throw new Error('Le dos est déjà occupé par un autre objet.');
                 item.equipped = false;
                 item.slung = true;
                 message = `${item.name} MIS DANS LE DOS.`;
             } else if (op.type === 'toggle_light') {
                 const target = resolveLamp(items, op.itemId);
-                if (!target) throw new Error('Lampe introuvable.');
-                if (!target.equipped) throw new Error('Équipez d’abord cette lampe.');
+                if (!target) throw new Error('Appareil introuvable.');
+                if (!target.equipped) throw new Error('Équipez d’abord cet appareil.');
                 settleLamp(target.lamp);
                 if (target.lamp.lit) {
                     target.lamp.lit = false;
-                    message = `${target.lamp.name} ÉTEINTE.`;
+                    message = `${target.lamp.name} ÉTEINT.`;
                 } else {
-                    if (target.lamp.content.current <= 0) throw new Error('Lampe à plat : rechargez-la avec une batterie.');
+                    if (target.lamp.content.current <= 0) throw new Error('Batterie à plat : rechargez-la.');
                     target.lamp.lit = true;
                     target.lamp.litSince = Date.now();
-                    message = `${target.lamp.name} ALLUMÉE.`;
+                    message = `${target.lamp.name} ALLUMÉ.`;
                 }
             } else if (op.type === 'mount') {
                 const accessoryIndex = items.findIndex(candidate => candidate.id === op.otherId);
@@ -1048,6 +1108,7 @@
                 const accessory = item?.attachments?.[slot];
                 if (!accessory) throw new Error('Aucun équipement monté sur cet emplacement.');
                 settleLamp(accessory);
+                if (slot === 'sangle' && item.slung) switchOffLights(item);
                 delete item.attachments[slot];
                 if (Object.keys(item.attachments).length === 0) delete item.attachments;
                 if (slot === 'sangle') delete item.slung;
@@ -1086,16 +1147,23 @@
                 }
             } else {
                 const target = resolveLamp(items, op.otherId);
-                if (!item || !LOOT_CATALOG[item.catalogId]?.recharger || !item.content) throw new Error('Cet objet ne peut pas recharger une lampe.');
-                if (!target) throw new Error('Lampe introuvable.');
+                if (!item || !LOOT_CATALOG[item.catalogId]?.recharger || !item.content) throw new Error('Cet objet ne peut pas recharger un appareil.');
+                if (!target) throw new Error('Appareil introuvable.');
+                const rechargeInfo = getRechargeInfo(item, target.lamp);
+                if (!rechargeInfo.compatible) throw new Error(`Batterie incompatible : ${LOOT_CATALOG[target.lamp.catalogId].lamp.requiresBattery} requis.`);
                 settleLamp(target.lamp);
                 const missing = target.lamp.content.capacity - target.lamp.content.current;
-                if (missing <= 0) throw new Error('Cette lampe est déjà pleine.');
+                if (missing <= 0) throw new Error('Cet appareil est déjà plein.');
                 if (item.content.current <= 0) throw new Error('Cette batterie est vide.');
                 const amount = Math.min(missing, item.content.current);
                 item.content.current -= amount;
                 target.lamp.content.current += amount;
-                message = `${target.lamp.name} RECHARGÉE : +${formatContentValue(amount)} ${item.content.unit}.`;
+                // Batterie bricolée : le détecteur pourra s'éteindre brièvement (voir le radar).
+                if (LOOT_CATALOG[target.lamp.catalogId].lamp.nativeBattery) {
+                    if (rechargeInfo.native) delete target.lamp.jury;
+                    else target.lamp.jury = true;
+                }
+                message = `${target.lamp.name} RECHARGÉ : +${formatContentValue(amount)} ${item.content.unit}.`;
             }
             inventories[op.playerUid] = items;
             return message;
@@ -1120,6 +1188,346 @@
             refreshInventoryViews();
         }
         setInterval(tickLamps, 10000);
+
+        // ---- Détecteur de mouvement : radar du joueur (détecteur allumé) et radar du MJ (au moins un détecteur actif).
+        // Contacts et saturation vivent dans Firebase (`motion`) ; saccades, dérive et fantômes sont tirés localement, sans écriture réseau.
+        const RADAR_RANGE_M = 25;
+        const RADAR_RADIUS_RATIO = 0.46;
+        const INTENSITY_LABELS = ['', 'faible', 'moyen', 'fort'];
+        let motionRef = null;
+        let motionState = { contacts: {}, saturated: false };
+        const radarRuntime = {};
+        const radarView = { animationId: 0, sweepStart: performance.now(), blackoutUntil: 0, blackoutCooldownUntil: 0, nextBlackoutCheck: 0, ghosts: [], readout: '', readoutAt: 0 };
+
+        const isDetectorItem = item => !!item?.lit && !!LOOT_CATALOG[item.catalogId]?.lamp?.detector;
+        const hasActiveDetector = uid => (currentState.inventories?.[uid] || []).some(isDetectorItem);
+        const countActiveDetectors = () => Object.keys(currentState.inventories || {}).filter(hasActiveDetector).length;
+        const getServerNow = () => Date.now() + serverTimeOffset;
+
+        function seededRandom(seed) {
+            let state = (seed >>> 0) || 1;
+            return () => {
+                state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+                return state / 4294967296;
+            };
+        }
+
+        // Forme irrégulière propre à chaque contact (graine fixée à sa création).
+        function traceBlob(ctx, x, y, radius, seed) {
+            const rand = seededRandom(seed);
+            const count = 9;
+            const radii = Array.from({ length: count }, () => radius * (0.55 + rand() * 0.8));
+            ctx.beginPath();
+            radii.forEach((r, index) => {
+                const angle = (index / count) * Math.PI * 2;
+                const px = x + Math.cos(angle) * r;
+                const py = y + Math.sin(angle) * r;
+                if (index === 0) ctx.moveTo(px, py);
+                else ctx.lineTo(px, py);
+            });
+            ctx.closePath();
+        }
+
+        function getLiveContacts() {
+            const now = getServerNow();
+            return Object.entries(motionState.contacts || {}).filter(([, contact]) => !contact.ttl || !contact.createdAt || now < contact.createdAt + contact.ttl);
+        }
+
+        function getContactPosition(id, contact, now, master) {
+            const runtime = radarRuntime[id] || (radarRuntime[id] = { visible: true, nextToggle: now + 500 + Math.random() * 1500, ox: 0, oy: 0, tx: 0, ty: 0, nextDrift: 0 });
+            if (master) return { x: contact.x, y: contact.y, visible: true };
+            if (contact.jitter && now >= runtime.nextToggle) {
+                runtime.visible = !runtime.visible;
+                runtime.nextToggle = now + (runtime.visible ? 400 + Math.random() * 2200 : 150 + Math.random() * 1100);
+            }
+            if (contact.blur) {
+                if (now >= runtime.nextDrift) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const distance = Math.random() * 0.12;
+                    runtime.tx = Math.cos(angle) * distance;
+                    runtime.ty = Math.sin(angle) * distance;
+                    runtime.nextDrift = now + 300 + Math.random() * 600;
+                }
+                runtime.ox += (runtime.tx - runtime.ox) * 0.08;
+                runtime.oy += (runtime.ty - runtime.oy) * 0.08;
+            }
+            return {
+                x: contact.x + (contact.blur ? runtime.ox : 0),
+                y: contact.y + (contact.blur ? runtime.oy : 0),
+                visible: !contact.jitter || runtime.visible
+            };
+        }
+
+        function drawRadarNoise(ctx, size, center, radius) {
+            for (let index = 0; index < 140; index += 1) {
+                ctx.fillStyle = `rgba(134, 239, 172, ${0.1 + Math.random() * 0.4})`;
+                ctx.fillRect(Math.random() * size, Math.random() * size, 1 + Math.random() * 2, 1);
+            }
+            for (let index = 0; index < 2; index += 1) {
+                ctx.fillStyle = 'rgba(134, 239, 172, 0.08)';
+                ctx.fillRect(0, Math.random() * size, size, 2 + Math.random() * 4);
+            }
+            const ghosts = radarView.ghosts;
+            const now = performance.now();
+            if (ghosts.length < 30 && Math.random() < 0.4) {
+                const angle = Math.random() * Math.PI * 2;
+                const distance = Math.sqrt(Math.random()) * radius;
+                ghosts.push({ x: center + Math.cos(angle) * distance, y: center + Math.sin(angle) * distance, r: 1.5 + Math.random() * 2.5, until: now + 150 + Math.random() * 750 });
+            }
+            radarView.ghosts = ghosts.filter(ghost => ghost.until > now);
+            radarView.ghosts.forEach(ghost => {
+                ctx.save();
+                ctx.shadowColor = '#86efac';
+                ctx.shadowBlur = 5;
+                ctx.fillStyle = `rgba(187, 247, 208, ${0.3 + Math.random() * 0.5})`;
+                ctx.beginPath();
+                ctx.arc(ghost.x, ghost.y, ghost.r, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            });
+        }
+
+        // Dessine un radar et renvoie la distance du contact visible le plus proche (null si aucun).
+        function drawRadar(canvas, master) {
+            const ctx = canvas.getContext('2d');
+            const size = canvas.width;
+            const center = size / 2;
+            const radius = size * RADAR_RADIUS_RATIO;
+            const now = performance.now();
+            const wallNow = Date.now();
+            ctx.fillStyle = '#020a04';
+            ctx.fillRect(0, 0, size, size);
+
+            if (!master && now < radarView.blackoutUntil) {
+                for (let index = 0; index < 60; index += 1) {
+                    ctx.fillStyle = `rgba(134, 239, 172, ${Math.random() * 0.12})`;
+                    ctx.fillRect(Math.random() * size, Math.random() * size, 2 + Math.random() * 20, 1);
+                }
+                return { blackout: true, nearest: null };
+            }
+
+            ctx.save();
+            ctx.strokeStyle = 'rgba(74, 222, 128, 0.35)';
+            ctx.fillStyle = 'rgba(74, 222, 128, 0.6)';
+            ctx.font = '12px monospace';
+            ctx.lineWidth = 1;
+            for (let ring = 1; ring <= 5; ring += 1) {
+                ctx.beginPath();
+                ctx.arc(center, center, (radius * ring) / 5, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.fillText(`${ring * 5}`, center + 3, center - (radius * ring) / 5 - 2);
+            }
+            ctx.beginPath();
+            ctx.moveTo(center - radius, center);
+            ctx.lineTo(center + radius, center);
+            ctx.moveTo(center, center - radius);
+            ctx.lineTo(center, center + radius);
+            ctx.stroke();
+            ctx.restore();
+
+            const sweep = (((now - radarView.sweepStart) / 3000) % 1) * Math.PI * 2;
+            for (let index = 0; index < 24; index += 1) {
+                const end = sweep - index * 0.045;
+                ctx.beginPath();
+                ctx.moveTo(center, center);
+                ctx.arc(center, center, radius, end - 0.05, end);
+                ctx.closePath();
+                ctx.fillStyle = `rgba(74, 222, 128, ${0.22 * (1 - index / 24)})`;
+                ctx.fill();
+            }
+            ctx.strokeStyle = 'rgba(134, 239, 172, 0.8)';
+            ctx.beginPath();
+            ctx.moveTo(center, center);
+            ctx.lineTo(center + Math.cos(sweep) * radius, center + Math.sin(sweep) * radius);
+            ctx.stroke();
+
+            const saturated = motionState.saturated && !master;
+            let nearest = null;
+            getLiveContacts().forEach(([id, contact]) => {
+                const position = getContactPosition(id, contact, wallNow, master);
+                if (!position.visible) return;
+                const distance = Math.hypot(position.x, position.y) * RADAR_RANGE_M;
+                const angle = Math.atan2(position.y, position.x);
+                const sinceSweep = (((sweep - angle) % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+                const brightness = 0.4 + 0.6 * (1 - sinceSweep / (Math.PI * 2));
+                const blurred = contact.blur && !master;
+                let alpha = [0, 0.35, 0.65, 1][contact.intensity || 2] * brightness * (blurred ? 0.75 : 1);
+                if (saturated) alpha *= 0.4 + Math.random() * 0.6;
+                const blobRadius = (4 + (contact.intensity || 2) * 2.5) * (blurred ? 1.8 : 1);
+                const px = center + position.x * radius;
+                const py = center + position.y * radius;
+                ctx.save();
+                ctx.shadowColor = '#86efac';
+                ctx.shadowBlur = blurred ? 22 : 9;
+                ctx.globalAlpha = Math.min(1, alpha);
+                ctx.fillStyle = '#bbf7d0';
+                traceBlob(ctx, px, py, blobRadius, contact.seed || 1);
+                ctx.fill();
+                ctx.restore();
+                if (master) {
+                    ctx.strokeStyle = 'rgba(251, 191, 36, 0.9)';
+                    ctx.beginPath();
+                    ctx.arc(px, py, blobRadius + 5, 0, Math.PI * 2);
+                    ctx.stroke();
+                }
+                if (nearest === null || distance < nearest) nearest = distance;
+            });
+            if (saturated) drawRadarNoise(ctx, size, center, radius);
+            return { blackout: false, saturated, nearest };
+        }
+
+        function updateRadarReadout(result) {
+            const readout = document.getElementById('radar-readout');
+            const now = performance.now();
+            let text;
+            if (result.blackout) text = 'SIGNAL PERDU';
+            else if (result.saturated) text = `${(Math.random() * RADAR_RANGE_M).toFixed(1)} m ?`;
+            else text = result.nearest === null ? 'AUCUN CONTACT' : `${result.nearest.toFixed(1)} m`;
+            if (result.saturated && now - radarView.readoutAt < 120) return;
+            radarView.readoutAt = now;
+            if (text !== radarView.readout) {
+                radarView.readout = text;
+                readout.textContent = text;
+            }
+        }
+
+        // Batterie bricolée : coupure rare (1 à 7 s), suivie d'un délai de répit pour ne pas devenir répétitive.
+        function updateRadarBlackout() {
+            const now = performance.now();
+            const jury = (currentState.inventories?.[playerSession?.uid] || []).some(item => isDetectorItem(item) && item.jury);
+            if (!jury) {
+                radarView.blackoutUntil = 0;
+                return;
+            }
+            if (now < radarView.nextBlackoutCheck) return;
+            radarView.nextBlackoutCheck = now + 1000;
+            if (now >= radarView.blackoutUntil && now >= radarView.blackoutCooldownUntil && Math.random() < 0.05) {
+                const duration = 1000 + Math.random() * 6000;
+                radarView.blackoutUntil = now + duration;
+                radarView.blackoutCooldownUntil = now + duration + 20000;
+            }
+        }
+
+        function radarLoop() {
+            radarView.animationId = 0;
+            const panel = document.getElementById('radar-panel');
+            const section = document.getElementById('master-radar-section');
+            const playerShown = !panel.classList.contains('hidden');
+            const masterShown = !section.classList.contains('hidden');
+            if (playerShown && !document.getElementById('radar-body').classList.contains('hidden')) {
+                updateRadarBlackout();
+                updateRadarReadout(drawRadar(document.getElementById('radar-canvas'), false));
+            }
+            if (masterShown) drawRadar(document.getElementById('master-radar-canvas'), true);
+            if (playerShown || masterShown) radarView.animationId = requestAnimationFrame(radarLoop);
+        }
+
+        function refreshMasterColumn() {
+            const column = document.getElementById('validation-column');
+            if (!column || !canModifyGame()) return;
+            const pendingCount = Object.values(pendingActions).filter(action => action.status === 'pending').length;
+            const radarShown = !document.getElementById('master-radar-section').classList.contains('hidden');
+            column.classList.toggle('hidden', pendingCount === 0 && !radarShown);
+            document.getElementById('validation-title').classList.toggle('hidden', pendingCount === 0);
+        }
+
+        function updateRadarVisibility() {
+            const panel = document.getElementById('radar-panel');
+            const section = document.getElementById('master-radar-section');
+            if (!panel || !section || !playerSession) return;
+            const isMaster = canModifyGame();
+            const playerActive = !isMaster && hasActiveDetector(playerSession.uid);
+            const masterActive = isMaster && countActiveDetectors() > 0;
+            panel.classList.toggle('hidden', !playerActive);
+            section.classList.toggle('hidden', !masterActive);
+            refreshMasterColumn();
+            if (masterActive) renderMasterRadarControls();
+            if ((playerActive || masterActive) && !radarView.animationId) radarView.animationId = requestAnimationFrame(radarLoop);
+        }
+
+        function renderMasterRadarControls() {
+            if (!canModifyGame()) return;
+            document.getElementById('master-radar-count').textContent = `(${countActiveDetectors()} actif${countActiveDetectors() > 1 ? 's' : ''})`;
+            document.getElementById('motion-saturation').textContent = `SATURATION : ${motionState.saturated ? 'OUI' : 'NON'}`;
+            const list = document.getElementById('motion-contacts');
+            list.replaceChildren();
+            getLiveContacts().forEach(([id, contact]) => {
+                const item = createInventoryElement('li', 'flex items-center justify-between gap-2 border-b border-amber-900');
+                const distance = (Math.hypot(contact.x, contact.y) * RADAR_RANGE_M).toFixed(1);
+                item.appendChild(createInventoryElement('span', '', `${distance} m · ${INTENSITY_LABELS[contact.intensity || 2]}${contact.jitter ? ' · saccadé' : ''}${contact.blur ? ' · brouillé' : ''}`));
+                const remove = createInventoryElement('button', 'amber-border px-2 text-amber-100 hover:bg-amber-900', '✕');
+                remove.type = 'button';
+                remove.title = 'Retirer ce contact';
+                remove.addEventListener('click', () => motionRef?.child(`contacts/${id}`).remove());
+                item.appendChild(remove);
+                list.appendChild(item);
+            });
+        }
+
+        function placeMotionContact(event) {
+            if (!canModifyGame() || !motionRef) return;
+            const canvas = event.currentTarget;
+            const rect = canvas.getBoundingClientRect();
+            const scale = (canvas.width * RADAR_RADIUS_RATIO);
+            const x = ((event.clientX - rect.left) / rect.width * canvas.width - canvas.width / 2) / scale;
+            const y = ((event.clientY - rect.top) / rect.height * canvas.height - canvas.height / 2) / scale;
+            if (Math.hypot(x, y) > 1) return;
+            motionRef.child('contacts').push({
+                x: Math.round(x * 1000) / 1000,
+                y: Math.round(y * 1000) / 1000,
+                intensity: Number(document.getElementById('motion-intensity').value),
+                jitter: document.getElementById('motion-jitter').checked,
+                blur: document.getElementById('motion-blur').checked,
+                seed: Math.floor(Math.random() * 1e9),
+                ttl: Number(document.getElementById('motion-ttl').value),
+                createdAt: firebase.database.ServerValue.TIMESTAMP
+            });
+        }
+
+        function listenMotion(gameRef) {
+            motionRef = gameRef.child('motion');
+            motionRef.on('value', snapshot => {
+                const value = snapshot.val() || {};
+                motionState = { contacts: value.contacts || {}, saturated: !!value.saturated };
+                Object.keys(radarRuntime).forEach(id => { if (!motionState.contacts[id]) delete radarRuntime[id]; });
+                updateRadarVisibility();
+                renderMasterRadarControls();
+            });
+            // Le navigateur du MJ retire les contacts expirés.
+            setInterval(() => {
+                if (!canModifyGame()) return;
+                const now = getServerNow();
+                Object.entries(motionState.contacts).forEach(([id, contact]) => {
+                    if (contact.ttl && contact.createdAt && now > contact.createdAt + contact.ttl) motionRef.child(`contacts/${id}`).remove();
+                });
+            }, 2000);
+        }
+
+        function initRadarControls() {
+            document.getElementById('master-radar-canvas').addEventListener('click', placeMotionContact);
+            document.getElementById('motion-saturation').addEventListener('click', () => motionRef?.child('saturated').set(!motionState.saturated));
+            document.getElementById('motion-clear').addEventListener('click', () => motionRef?.child('contacts').remove());
+            const panel = document.getElementById('radar-panel');
+            const handle = document.getElementById('radar-header');
+            document.getElementById('radar-collapse').addEventListener('click', event => {
+                const body = document.getElementById('radar-body');
+                body.classList.toggle('hidden');
+                event.currentTarget.textContent = body.classList.contains('hidden') ? '▲' : '▼';
+            });
+            let drag = null;
+            handle.addEventListener('pointerdown', event => {
+                if (event.target.closest('button')) return;
+                const rect = panel.getBoundingClientRect();
+                drag = { dx: event.clientX - rect.left, dy: event.clientY - rect.top };
+                handle.setPointerCapture(event.pointerId);
+            });
+            handle.addEventListener('pointermove', event => {
+                if (!drag) return;
+                panel.style.left = `${Math.min(Math.max(0, event.clientX - drag.dx), window.innerWidth - panel.offsetWidth)}px`;
+                panel.style.top = `${Math.min(Math.max(0, event.clientY - drag.dy), window.innerHeight - panel.offsetHeight)}px`;
+            });
+            ['pointerup', 'pointercancel'].forEach(name => handle.addEventListener(name, () => { drag = null; }));
+        }
 
         function applyWeaponOp(inventories, op) {
             const items = [...(inventories[op.playerUid] || [])];
@@ -1270,7 +1678,7 @@
                 getActionStatusElement().textContent = text;
             };
             try {
-                if (op.type === 'recharge' && !canModifyGame()) {
+                if (op.type === 'recharge' && !canModifyGame() && !isNativeRecharge(currentState.inventories[playerSession.uid] || [], op)) {
                     if (!actionQueueRef) throw new Error('connexion Firebase requise pour le test de Comtech.');
                     const battery = (currentState.inventories[playerSession.uid] || []).find(item => item.id === itemId);
                     applyInventoryOp(JSON.parse(JSON.stringify(currentState.inventories)), op);
@@ -1297,7 +1705,8 @@
         function handleInventoryOpAdded(snapshot) {
             const op = snapshot.val();
             snapshot.ref.remove();
-            if (!op || !canModifyGame() || op.type === 'recharge') return;
+            if (!op || !canModifyGame()) return;
+            if (op.type === 'recharge' && !isNativeRecharge(currentState.inventories[op.playerUid] || [], op)) return;
             try {
                 applyInventoryOp(currentState.inventories, op);
                 publishGameState();
@@ -1388,7 +1797,7 @@
                                     event.dataTransfer.effectAllowed = 'move';
                                 });
                             }
-                            if (weaponDef || def.lamp) {
+                            if (weaponDef || def.lamp || def.slots) {
                                 row.addEventListener('dragover', event => {
                                     event.preventDefault();
                                     row.classList.add('bg-amber-900', 'bg-opacity-40');
@@ -1402,7 +1811,7 @@
                                     const draggedDef = LOOT_CATALOG[dragged.catalogId] || {};
                                     if (draggedDef.recharger && def.lamp) requestInventoryOp('recharge', dragged.id, item.id);
                                     else if (draggedDef.recharger && getMountedLight(item)) requestInventoryOp('recharge', dragged.id, `mounted:${item.id}`);
-                                    else if (weaponDef && draggedDef.attachment) requestInventoryOp('mount', item.id, dragged.id);
+                                    else if ((weaponDef || def.slots) && draggedDef.attachment) requestInventoryOp('mount', item.id, dragged.id);
                                     else if (weaponDef) requestInventoryOp('load', item.id, dragged.id);
                                     else document.getElementById('inventory-status').textContent = 'IMPOSSIBLE : combinaison impossible.';
                                 });
@@ -1460,10 +1869,19 @@
                                     ));
                                 }
                             }
+                            if (!weaponDef && def.slots) {
+                                Object.keys(item.attachments || {}).forEach(slot => makeButton(
+                                    `Retirer : ${item.attachments[slot].name}`,
+                                    () => requestInventoryOp('unmount', item.id, slot)
+                                ));
+                                items
+                                    .filter(other => canAttach(item, other) && !item.attachments?.[LOOT_CATALOG[other.catalogId].attachment.slot])
+                                    .forEach(accessory => makeButton(`Monter ${accessory.name}`, () => requestInventoryOp('mount', item.id, accessory.id)));
+                            }
                             if (def.ammo?.magazine && item.content) addAmmoButtons(item.id, item.content, def.ammo.caliber);
                             if (def.lamp) {
-                                batteries.filter(battery => battery.id !== item.id).forEach(battery => makeButton(
-                                    `Recharger (${battery.name} ${formatContentValue(battery.content.current)}%)`,
+                                batteries.filter(battery => battery.id !== item.id && getRechargeInfo(battery, item).compatible).forEach(battery => makeButton(
+                                    `Recharger (${battery.name} ${formatContentValue(battery.content.current)}%)${getRechargeInfo(battery, item).native || !def.lamp.nativeBattery ? '' : ' — bricolage'}`,
                                     () => requestInventoryOp('recharge', battery.id, item.id)
                                 ));
                             }
@@ -1575,13 +1993,13 @@
                 .filter(([, action]) => action.status === 'pending')
                 .sort(([, first], [, second]) => (first.createdAt || 0) - (second.createdAt || 0));
             list.replaceChildren();
-            column.classList.toggle('hidden', pending.length === 0);
+            refreshMasterColumn();
             pending.forEach(([actionId, action]) => {
                 const actionLabel = action.targetType === 'door'
                     ? 'FORCAGE DE PORTE'
                     : action.targetType === 'loot'
                         ? 'OUVERTURE DU BUTIN'
-                        : action.targetType === 'recharge' ? 'TEST DE COMTECH : RECHARGE DE LAMPE' : 'PRISE D’OBJET';
+                        : action.targetType === 'recharge' ? 'TEST DE COMTECH : RECHARGE D’APPAREIL' : 'PRISE D’OBJET';
                 const pickupSource = action.targetType === 'loot_pickup'
                     ? getLootSource(action.globalKey, action.zoneId, action.groupId, action.itemIndex)
                     : null;
@@ -1800,6 +2218,7 @@
                     transfers = snapshot.val() || {};
                     renderTransfers();
                 });
+                listenMotion(gameRef);
                 if (playerSession.role === 'master') inventoryOpsRef.on('child_added', handleInventoryOpAdded);
                 gameStateRef.on('value', snapshot => {
                     if (playerSession.role === 'master') return;
@@ -1838,6 +2257,7 @@
             document.getElementById('logout-button').addEventListener('click', logout);
             setInterval(() => { if (playerSession?.role === 'master') updatePlayerViews(); }, 5000);
             initEquippedPanelDrag();
+            initRadarControls();
             document.getElementById('saved-sessions-select').addEventListener('change', selectSavedSession);
             document.getElementById('delete-session-button').addEventListener('click', deleteSavedSession);
             document.getElementById('save-session-button').addEventListener('click', () => {

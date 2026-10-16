@@ -196,6 +196,9 @@
                         { item: "c17_pistol", min: 1, max: 1 },
                         { item: "c17_magazine", min: 1, max: 1 },
                         { item: "tactical_light", min: 1, max: 1 },
+                        { item: "motion_detector", min: 1, max: 1 },
+                        { item: "motion_detector_sling", min: 1, max: 1 },
+                        { item: "dm18v_battery", min: 1, max: 2 },
                         { item: "ballistic_vest", min: 1, max: 2 }
                     ]
                 }

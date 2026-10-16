@@ -9,7 +9,8 @@
         // Équipements sur arme : une arme déclare ses `tags` et ses emplacements (`slots`).
         // Un accessoire déclare `attachment: { slot, requiresTags?, items? }` :
         // il se monte si l'arme a l'emplacement, et porte tous les tags requis ou figure dans `items`.
-        // Emplacements existants : "lampe", "sangle". Tags existants : arme, arme_a_feu, militaire, civil.
+        // Emplacements existants : "lampe", "sangle". Tags existants : arme, arme_a_feu, militaire, civil, detecteur.
+        // Un objet avec `lamp` s'allume et consomme sa batterie (`drainPerMinute`) ; `lamp.detector` ouvre le radar.
         const LOOT_CATALOG = {
             drz32_rifle: {
                 name: "Fusil automatique court DRZ-32",
@@ -193,7 +194,52 @@
                 name: "Batterie portable",
                 description: "Batterie autonome destinée à alimenter des équipements portatifs.",
                 content: { capacity: 100, unit: "%" },
-                recharger: true
+                recharger: true,
+                batteryTags: ["18V"]
+            },
+            motion_detector: {
+                name: "Détecteur de mouvement",
+                description: "Détecteur portatif à balayage. Il affiche la distance des mouvements détectés dans un rayon de 25 m, mais vide sa batterie très vite (environ 5 % par minute). Il se recharge avec une batterie 18V.",
+                content: { capacity: 100, unit: "%" },
+                hands: 1,
+                tags: ["detecteur"],
+                slots: ["sangle"],
+                lamp: { drainPerMinute: 5, detector: true, requiresBattery: "18V", nativeBattery: "dm18v_battery" }
+            },
+            motion_detector_sling: {
+                name: "Sangle détecteur de mouvement",
+                description: "Sangle permettant de porter un détecteur de mouvement dans le dos pour libérer une main.",
+                attachment: { slot: "sangle", items: ["motion_detector"] }
+            },
+            // Batteries 18V : `batteryTags` doit contenir le type exigé par l'appareil (`lamp.requiresBattery`).
+            // Seule la batterie `lamp.nativeBattery` recharge l'appareil sans test de Comtech ni risque de coupure.
+            dm18v_battery: {
+                name: "Batterie DM18V",
+                description: "Batterie d'origine du détecteur de mouvement. Aucune manipulation nécessaire pour le recharger.",
+                content: { capacity: 100, unit: "%" },
+                recharger: true,
+                batteryTags: ["18V", "DM18V"]
+            },
+            industrial_battery_18v: {
+                name: "Batterie industrielle 18V",
+                description: "Grosse batterie d'outillage 18V. Compatible avec le détecteur de mouvement après bricolage.",
+                content: { capacity: 100, unit: "%" },
+                recharger: true,
+                batteryTags: ["18V"]
+            },
+            tool_battery_18v: {
+                name: "Pack batterie 18V d'outillage",
+                description: "Pack 18V de visseuse sans fil. Capacité moyenne.",
+                content: { capacity: 60, unit: "%" },
+                recharger: true,
+                batteryTags: ["18V"]
+            },
+            worn_battery_18v: {
+                name: "Batterie 18V usagée",
+                description: "Batterie 18V fatiguée qui ne tient plus qu'une faible charge.",
+                content: { capacity: 35, unit: "%" },
+                recharger: true,
+                batteryTags: ["18V"]
             },
             manual_welder: {
                 name: "Vieux poste à souder manuel",
