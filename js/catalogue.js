@@ -154,7 +154,8 @@
             },
             industrial_antiseptic: {
                 name: "Antiseptique industriel",
-                description: "Produit antiseptique à usage technique et médical."
+                description: "Produit antiseptique à usage                 technique et médical.",
+                                content: { capacity: 3, unit: "Dose(s)" }
             },
             modular_splint: {
                 name: "Attelle modulaire",
