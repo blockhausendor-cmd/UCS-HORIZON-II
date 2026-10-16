@@ -70,12 +70,15 @@
         </div>
     </div>
 
+    <div id="equipped-bar" class="hidden fixed bottom-2 left-2 z-30 max-w-sm bg-black amber-border-glow p-3 rounded-lg text-amber-100"></div>
+
     <div id="inventory-overlay" class="hidden fixed inset-0 z-40 flex items-center justify-center bg-black bg-opacity-80 p-4">
         <section class="w-full max-w-3xl max-h-full overflow-y-auto amber-border-glow bg-black p-5 rounded-lg" aria-labelledby="inventory-title">
             <header class="flex justify-between items-center gap-4 border-b border-amber-600 pb-3 mb-4">
                 <h2 id="inventory-title" class="text-2xl font-bold text-amber-300">SUR SOIT</h2>
                 <button type="button" onclick="toggleInventory(false)" class="btn-retro px-4 py-2 text-lg font-bold">FERMER</button>
             </header>
+            <p id="inventory-status" class="text-amber-300 mb-3 min-h-[1.5rem]" role="status"></p>
             <div id="inventory-content" class="space-y-4 text-amber-100"></div>
         </section>
     </div>
@@ -212,6 +215,7 @@
         let gameStateRef = null;
         let playerPresenceRef = null;
         let actionQueueRef = null;
+        let inventoryOpsRef = null;
         let pendingActions = {};
         let activeValidationActionId = null;
 
@@ -320,6 +324,90 @@
             } else {
                 showHomeScreen(false);
             }
+            renderEquippedBar();
+         }
+
+        function refreshInventoryViews() {
+            renderEquippedBar();
+            if (!document.getElementById('inventory-overlay').classList.contains('hidden')) renderInventoryContents();
+        }
+
+        // Applique l'état publié par le MJ en conservant la navigation locale du joueur quand demandé.
+        function applySharedSnapshot(sharedState, keepNavigation = false) {
+            const localNavigation = keepNavigation ? {
+                view: currentState.view,
+                currentGlobalKey: currentState.currentGlobalKey,
+                currentZoneId: currentState.currentZoneId,
+                currentReportId: currentState.currentReportId
+            } : {};
+            currentState = { ...currentState, ...sharedState, ...localNavigation, lootInputZone: null, doorInputZone: null };
+            currentState.inventories = currentState.inventories || {};
+            currentState.inventoryOwners = currentState.inventoryOwners || {};
+            currentState.lootClaims = currentState.lootClaims || {};
+            renderSharedState();
+            refreshInventoryViews();
+        }
+
+        function renderEquippedBar() {
+            const bar = document.getElementById('equipped-bar');
+            if (!bar) return;
+            bar.replaceChildren();
+            const items = (playerSession && currentState.inventories?.[playerSession.uid]) || [];
+            const equipped = items.filter(item => item.equipped);
+            const slung = items.filter(item => item.slung);
+            bar.classList.toggle('hidden', equipped.length === 0 && slung.length === 0);
+            if (equipped.length === 0 && slung.length === 0) return;
+
+            bar.appendChild(createInventoryElement('div', 'text-amber-400 font-bold mb-1', `ÉQUIPÉ — MAINS ${getHandsUsed(items)}/${MAX_HANDS}`));
+            const addButton = (container, label, handler, active = false) => {
+                const button = createInventoryElement('button', `amber-border px-3 py-1 text-amber-100 hover:bg-amber-900${active ? ' bg-amber-800' : ''}`, label);
+                button.type = 'button';
+                button.addEventListener('click', handler);
+                container.appendChild(button);
+            };
+            const lampLabel = (lamp, name) => `${lamp.lit ? 'Éteindre' : 'Allumer'} ${name} (${formatContentValue(lamp.content.current)}%)`;
+            equipped.forEach(item => {
+                const def = LOOT_CATALOG[item.catalogId] || {};
+                const row = createInventoryElement('div', 'mb-2');
+                row.appendChild(createInventoryElement('div', 'text-amber-100 font-bold', item.name));
+                const actions = createInventoryElement('div', 'flex flex-wrap gap-2 mt-1');
+                if (def.weapon) {
+                    const ammo = item.magazine ? `${item.magazine.current}/${item.magazine.capacity}` : 'vide';
+                    addButton(actions, `${def.weapon.useLabel || 'Utiliser'} [${ammo}]`, () => requestInventoryOp('use', item.id));
+                    const mountedLight = getMountedLight(item);
+                    if (mountedLight) {
+                        addButton(actions, lampLabel(mountedLight, 'la lampe'), () => requestInventoryOp('toggle_light', `mounted:${item.id}`), mountedLight.lit);
+                    }
+                    if (item.attachments?.sangle) addButton(actions, 'Mettre dans le dos', () => requestInventoryOp('sling', item.id));
+                }
+                if (def.lamp) addButton(actions, lampLabel(item, 'la lampe'), () => requestInventoryOp('toggle_light', item.id), item.lit);
+                addButton(actions, 'Ranger', () => requestInventoryOp('unequip', item.id));
+                row.appendChild(actions);
+                bar.appendChild(row);
+            });
+            slung.forEach(item => {
+                const row = createInventoryElement('div', 'mb-2');
+                row.appendChild(createInventoryElement('div', 'text-amber-100 font-bold', `${item.name} — DANS LE DOS`));
+                const actions = createInventoryElement('div', 'flex flex-wrap gap-2 mt-1');
+                const backLight = getMountedLight(item);
+                if (backLight) {
+                    const lampWrapper = createInventoryElement('div', 'flex flex-col');
+                    const lampButton = createInventoryElement('button', `amber-border px-3 py-1 text-amber-100 hover:bg-amber-900${backLight.lit ? ' bg-amber-800' : ''}`, `${backLight.lit ? 'Éteindre' : 'Allumer'} la lampe`);
+                    lampButton.type = 'button';
+                    lampButton.addEventListener('click', () => requestInventoryOp('toggle_light', `mounted:${item.id}`));
+                    const percent = Math.max(0, Math.min(100, (backLight.content.current / backLight.content.capacity) * 100));
+                    const track = createInventoryElement('div', 'w-full h-1 bg-amber-950 mt-1');
+                    const fill = createInventoryElement('div', `h-1 ${percent <= 20 ? 'bg-red-500' : 'bg-amber-400'}`);
+                    fill.style.width = `${percent}%`;
+                    track.appendChild(fill);
+                    lampWrapper.append(lampButton, track);
+                    actions.appendChild(lampWrapper);
+                }
+                addButton(actions, 'Reprendre en main', () => requestInventoryOp('equip', item.id));
+                addButton(actions, 'Ranger', () => requestInventoryOp('unequip', item.id));
+                row.appendChild(actions);
+                bar.appendChild(row);
+            });
         }
 
         function publishGameState() {
@@ -363,14 +451,28 @@
             return typeof loot === 'string' ? loot.replace(/^\s*\d+\s*x\s*/i, '').trim() : loot.item;
         }
 
+        // Une boîte de cartouches se ramasse en 1 exemplaire : min/max portent alors sur son contenu.
+        function isAmmoBoxLoot(loot) {
+            return typeof loot !== 'string' && !!LOOT_CATALOG[loot.item]?.ammo?.box;
+        }
+
+        function getLootScaledValue(loot, lootLevel) {
+            const minimum = Math.max(1, Number(loot.min) || 1);
+            const maximum = Math.max(minimum, Number(loot.max) || minimum);
+            return Math.floor(minimum + (maximum - minimum) * (lootLevel - 1) / 4);
+        }
+
+        function getLootAmmoCount(loot, lootLevel) {
+            return Math.min(LOOT_CATALOG[loot.item].content.capacity, getLootScaledValue(loot, lootLevel));
+        }
+
         function getLootQuantity(loot, lootLevel) {
             if (typeof loot === 'string') {
                 const quantityMatch = loot.match(/^\s*(\d+)\s*x\s*/i);
                 return quantityMatch ? Number(quantityMatch[1]) : 1;
             }
-            const minimum = Math.max(1, Number(loot.min) || 1);
-            const maximum = Math.max(minimum, Number(loot.max) || minimum);
-            return Math.floor(minimum + (maximum - minimum) * (lootLevel - 1) / 4);
+            if (isAmmoBoxLoot(loot)) return 1;
+            return getLootScaledValue(loot, lootLevel);
         }
 
         function getLootPickupDetails(action) {
@@ -418,7 +520,11 @@
                 quantity: 1,
                 source: `${pickup.zone.code} — ${pickup.group.title}`,
                 ...(catalogId ? { catalogId } : {}),
-                ...(content ? { content: { current: content.capacity, capacity: content.capacity, unit: content.unit } } : {})
+                ...(content ? { content: {
+                    current: isAmmoBoxLoot(pickup.loot) ? getLootAmmoCount(pickup.loot, pickup.lootLevel) : content.capacity,
+                    capacity: content.capacity,
+                    unit: content.unit
+                } } : {})
             };
             const playerInventory = currentState.inventories[action.playerUid] || [];
             currentState.inventories[action.playerUid] = [...playerInventory, inventoryItem];
@@ -426,6 +532,397 @@
             currentState.inventoryOwners[action.playerUid] = action.playerName;
             currentState.lootClaims = currentState.lootClaims || {};
             currentState.lootClaims[pickup.targetId] = (Number(currentState.lootClaims[pickup.targetId]) || 0) + 1;
+        }
+
+        const MAX_HANDS = 2;
+
+        function getHandsUsed(items) {
+            return items
+                .filter(item => item.equipped)
+                .reduce((total, item) => total + (LOOT_CATALOG[item.catalogId]?.hands || 1), 0);
+        }
+
+        const getMountedLight = item => item?.attachments?.lampe;
+
+        // Un accessoire se monte si l'arme a l'emplacement et satisfait ses conditions (tags ou armes listées).
+        function canAttach(weapon, accessory) {
+            const weaponDef = LOOT_CATALOG[weapon?.catalogId];
+            const attachment = LOOT_CATALOG[accessory?.catalogId]?.attachment;
+            if (!weaponDef?.weapon || !attachment || !(weaponDef.slots || []).includes(attachment.slot)) return false;
+            if (attachment.items?.includes(weapon.catalogId)) return true;
+            return !!attachment.requiresTags && attachment.requiresTags.every(tag => (weaponDef.tags || []).includes(tag));
+        }
+
+        // Un chargeur est soit un objet de l'inventaire, soit celui inséré dans une arme ("loaded:<id de l'arme>").
+        function resolveMagazine(items, reference) {
+            if (typeof reference === 'string' && reference.startsWith('loaded:')) {
+                const weapon = items.find(item => item.id === reference.slice('loaded:'.length));
+                const magazine = weapon?.magazine;
+                return magazine ? { holder: magazine, caliber: LOOT_CATALOG[magazine.catalogId]?.ammo?.caliber } : null;
+            }
+            const item = items.find(candidate => candidate.id === reference);
+            const ammo = item && LOOT_CATALOG[item.catalogId]?.ammo;
+            return ammo?.magazine && item.content ? { holder: item.content, caliber: ammo.caliber } : null;
+        }
+
+        // Une lampe est soit un objet de l'inventaire, soit montée sur une arme ("mounted:<id de l'arme>").
+        function resolveLamp(items, reference) {
+            if (typeof reference === 'string' && reference.startsWith('mounted:')) {
+                const weapon = items.find(item => item.id === reference.slice('mounted:'.length));
+                const mountedLight = getMountedLight(weapon);
+                return mountedLight ? { lamp: mountedLight, equipped: !!(weapon.equipped || weapon.slung) } : null;
+            }
+            const item = items.find(candidate => candidate.id === reference);
+            return item && LOOT_CATALOG[item.catalogId]?.lamp ? { lamp: item, equipped: !!item.equipped } : null;
+        }
+
+        function settleLamp(lamp, now = Date.now()) {
+            if (!lamp.lit) return;
+            const rate = LOOT_CATALOG[lamp.catalogId]?.lamp?.drainPerMinute || 1;
+            const elapsedMinutes = Math.max(0, now - (lamp.litSince || now)) / 60000;
+            lamp.content.current = Math.max(0, lamp.content.current - elapsedMinutes * rate);
+            lamp.litSince = now;
+            if (lamp.content.current <= 0) lamp.lit = false;
+        }
+
+        function switchOffLights(item) {
+            [item, getMountedLight(item)].forEach(lamp => {
+                if (lamp?.lit) {
+                    settleLamp(lamp);
+                    lamp.lit = false;
+                }
+            });
+        }
+
+        function formatContentValue(value) {
+            return Math.ceil(value);
+        }
+
+        function applyInventoryOp(inventories, op) {
+            if (!['equip', 'unequip', 'toggle_light', 'mount', 'unmount', 'recharge', 'sling', 'fill_magazine', 'empty_magazine'].includes(op.type)) {
+                return applyWeaponOp(inventories, op);
+            }
+            const items = [...(inventories[op.playerUid] || [])];
+            const item = items.find(candidate => candidate.id === op.itemId);
+            let message;
+
+            if (op.type === 'equip') {
+                const hands = LOOT_CATALOG[item?.catalogId]?.hands;
+                if (!hands) throw new Error('Cet objet ne peut pas être équipé.');
+                if (item.equipped) throw new Error('Objet déjà équipé.');
+                if (getHandsUsed(items) + hands > MAX_HANDS) {
+                    throw new Error(hands === 2 ? 'Il faut avoir les deux mains libres.' : 'Mains insuffisantes : déséquipez un objet.');
+                }
+                item.equipped = true;
+                delete item.slung;
+                message = `${item.name} ÉQUIPÉ.`;
+            } else if (op.type === 'unequip') {
+                if (!item?.equipped && !item?.slung) throw new Error('Cet objet n’est pas équipé.');
+                switchOffLights(item);
+                item.equipped = false;
+                delete item.slung;
+                message = `${item.name} RANGÉ.`;
+            } else if (op.type === 'sling') {
+                if (!item?.equipped) throw new Error('Équipez d’abord cette arme.');
+                if (!item.attachments?.sangle) throw new Error('Cette arme n’a pas de sangle.');
+                if (items.some(other => other.slung)) throw new Error('Le dos est déjà occupé par une autre arme.');
+                item.equipped = false;
+                item.slung = true;
+                message = `${item.name} MIS DANS LE DOS.`;
+            } else if (op.type === 'toggle_light') {
+                const target = resolveLamp(items, op.itemId);
+                if (!target) throw new Error('Lampe introuvable.');
+                if (!target.equipped) throw new Error('Équipez d’abord cette lampe.');
+                settleLamp(target.lamp);
+                if (target.lamp.lit) {
+                    target.lamp.lit = false;
+                    message = `${target.lamp.name} ÉTEINTE.`;
+                } else {
+                    if (target.lamp.content.current <= 0) throw new Error('Lampe à plat : rechargez-la avec une batterie.');
+                    target.lamp.lit = true;
+                    target.lamp.litSince = Date.now();
+                    message = `${target.lamp.name} ALLUMÉE.`;
+                }
+            } else if (op.type === 'mount') {
+                const accessoryIndex = items.findIndex(candidate => candidate.id === op.otherId);
+                const accessory = items[accessoryIndex];
+                if (!item || !accessory || !canAttach(item, accessory)) throw new Error('Cet équipement n’est pas compatible avec cette arme.');
+                const slot = LOOT_CATALOG[accessory.catalogId].attachment.slot;
+                if (item.attachments?.[slot]) throw new Error(`Cet emplacement (${slot}) est déjà occupé sur cette arme.`);
+                switchOffLights(accessory);
+                items.splice(accessoryIndex, 1);
+                item.attachments = {
+                    ...item.attachments,
+                    [slot]: {
+                        name: accessory.name,
+                        catalogId: accessory.catalogId,
+                        ...(accessory.content ? { content: { ...accessory.content } } : {}),
+                        ...(LOOT_CATALOG[accessory.catalogId].lamp ? { lit: false } : {})
+                    }
+                };
+                message = `${accessory.name} MONTÉ SUR ${item.name}.`;
+            } else if (op.type === 'unmount') {
+                const slot = op.otherId || 'lampe';
+                const accessory = item?.attachments?.[slot];
+                if (!accessory) throw new Error('Aucun équipement monté sur cet emplacement.');
+                settleLamp(accessory);
+                delete item.attachments[slot];
+                if (Object.keys(item.attachments).length === 0) delete item.attachments;
+                if (slot === 'sangle') delete item.slung;
+                items.push({
+                    id: `${item.id}-${slot}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+                    name: accessory.name,
+                    description: LOOT_CATALOG[accessory.catalogId]?.description || '',
+                    quantity: 1,
+                    source: 'Équipement retiré',
+                    catalogId: accessory.catalogId,
+                    ...(accessory.content ? { content: { ...accessory.content } } : {}),
+                    ...(accessory.lit !== undefined ? { lit: false } : {})
+                });
+                message = `${accessory.name} RETIRÉ DE ${item.name}.`;
+            } else if (op.type === 'fill_magazine' || op.type === 'empty_magazine') {
+                // itemId = boîte de munitions, otherId = chargeur ; les deux doivent partager le calibre.
+                const boxDef = LOOT_CATALOG[item?.catalogId]?.ammo;
+                const target = resolveMagazine(items, op.otherId);
+                if (!boxDef?.box || !item.content) throw new Error('Boîte de munitions introuvable.');
+                if (!target) throw new Error('Chargeur introuvable.');
+                if (target.caliber !== boxDef.caliber) throw new Error('Calibre incompatible.');
+                const label = `${item.name}`;
+                // Une cartouche par opération ; `op.lost` = arrêt tardif, la cartouche quitte la source sans arriver.
+                if (op.type === 'fill_magazine') {
+                    if (target.holder.capacity - target.holder.current <= 0) throw new Error('Ce chargeur est déjà plein.');
+                    if (item.content.current < 1) throw new Error('Cette boîte est vide.');
+                    item.content.current -= 1;
+                    if (!op.lost) target.holder.current += 1;
+                    message = op.lost ? `OUPS ! UNE CARTOUCHE PERDUE (${label}).` : `CHARGEUR : +1 cartouche (${label}).`;
+                } else {
+                    if (target.holder.current < 1) throw new Error('Ce chargeur est déjà vide.');
+                    if (item.content.capacity - item.content.current <= 0) throw new Error('Cette boîte est pleine.');
+                    target.holder.current -= 1;
+                    if (!op.lost) item.content.current += 1;
+                    message = op.lost ? `OUPS ! UNE CARTOUCHE PERDUE (${label}).` : `CHARGEUR : -1 cartouche remise dans ${label}.`;
+                }
+            } else {
+                const target = resolveLamp(items, op.otherId);
+                if (!item || !LOOT_CATALOG[item.catalogId]?.recharger || !item.content) throw new Error('Cet objet ne peut pas recharger une lampe.');
+                if (!target) throw new Error('Lampe introuvable.');
+                settleLamp(target.lamp);
+                const missing = target.lamp.content.capacity - target.lamp.content.current;
+                if (missing <= 0) throw new Error('Cette lampe est déjà pleine.');
+                if (item.content.current <= 0) throw new Error('Cette batterie est vide.');
+                const amount = Math.min(missing, item.content.current);
+                item.content.current -= amount;
+                target.lamp.content.current += amount;
+                message = `${target.lamp.name} RECHARGÉE : +${formatContentValue(amount)} ${item.content.unit}.`;
+            }
+            inventories[op.playerUid] = items;
+            return message;
+        }
+
+        function tickLamps() {
+            if (!playerSession || !canModifyGame()) return;
+            const now = Date.now();
+            let changed = false;
+            Object.values(currentState.inventories || {}).forEach(items => {
+                (items || []).forEach(item => {
+                    [item, getMountedLight(item)].forEach(lamp => {
+                        if (lamp?.lit) {
+                            settleLamp(lamp, now);
+                            changed = true;
+                        }
+                    });
+                });
+            });
+            if (!changed) return;
+            publishGameState();
+            refreshInventoryViews();
+        }
+        setInterval(tickLamps, 10000);
+
+        function applyWeaponOp(inventories, op) {
+            const items = [...(inventories[op.playerUid] || [])];
+            const weapon = items.find(item => item.id === op.itemId);
+            const weaponDef = weapon && LOOT_CATALOG[weapon.catalogId]?.weapon;
+            if (!weaponDef) throw new Error('Cet objet n’est pas une arme.');
+            let message;
+
+            const ejectMagazine = () => {
+                const magazine = weapon.magazine;
+                delete weapon.magazine;
+                items.push({
+                    id: `${weapon.id}-mag-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+                    name: magazine.name,
+                    description: LOOT_CATALOG[magazine.catalogId]?.description || '',
+                    quantity: 1,
+                    source: 'Chargeur retiré',
+                    catalogId: magazine.catalogId,
+                    content: { current: magazine.current, capacity: magazine.capacity, unit: magazine.unit }
+                });
+            };
+
+            if (op.type === 'load') {
+                const magazineIndex = items.findIndex(item => item.id === op.otherId);
+                const magazine = items[magazineIndex];
+                if (!magazine || magazine.catalogId !== weaponDef.magazine || !magazine.content) {
+                    throw new Error('Ce chargeur n’est pas compatible avec cette arme.');
+                }
+                items.splice(magazineIndex, 1);
+                if (weapon.magazine) ejectMagazine();
+                weapon.magazine = {
+                    name: magazine.name,
+                    catalogId: magazine.catalogId,
+                    current: magazine.content.current,
+                    capacity: magazine.content.capacity,
+                    unit: magazine.content.unit
+                };
+                message = `${weapon.name} CHARGÉ (${weapon.magazine.current}/${weapon.magazine.capacity} ${weapon.magazine.unit}).`;
+            } else if (op.type === 'eject') {
+                if (!weapon.magazine) throw new Error('Aucun chargeur dans cette arme.');
+                ejectMagazine();
+                message = `CHARGEUR RETIRÉ DE ${weapon.name}.`;
+            } else if (op.type === 'use') {
+                if (!weapon.equipped) throw new Error('Équipez d’abord cette arme.');
+                if (!weapon.magazine) throw new Error('Arme non chargée : insérez un chargeur.');
+                if (weapon.magazine.current < 1) throw new Error('Chargeur vide : rechargez l’arme.');
+                const used = Math.min(weaponDef.useAmount, weapon.magazine.current);
+                weapon.magazine.current -= used;
+                message = `${weapon.name} UTILISÉ : -${used} ${weapon.magazine.unit} (reste ${weapon.magazine.current}/${weapon.magazine.capacity}).`;
+            } else {
+                throw new Error('Opération d’inventaire inconnue.');
+            }
+            inventories[op.playerUid] = items;
+            return message;
+        }
+
+        // Transfert de munitions : 1 cartouche toutes les AMMO_TRANSFER_MS ; un arrêt après 25 % du cycle fait perdre la cartouche en cours.
+        const AMMO_TRANSFER_MS = 5000;
+        const AMMO_SAFE_STOP_RATIO = 0.25;
+        let ammoTransfer = null;
+
+        function getAmmoPanel() {
+            let panel = document.getElementById('ammo-transfer-panel');
+            if (panel) return panel;
+            panel = createInventoryElement('div', 'fixed bottom-4 right-4 z-50 amber-border bg-black p-3 text-amber-100 hidden');
+            panel.id = 'ammo-transfer-panel';
+            panel.style.minWidth = '260px';
+            const title = createInventoryElement('div', 'font-bold text-amber-400', '');
+            title.id = 'ammo-transfer-title';
+            const track = createInventoryElement('div', 'w-full h-2 bg-amber-950 my-2');
+            const fill = createInventoryElement('div', 'h-2 bg-amber-400');
+            fill.id = 'ammo-transfer-fill';
+            track.style.position = 'relative';
+            const safeMark = createInventoryElement('div', 'bg-red-500');
+            safeMark.style.cssText = `position:absolute;top:0;bottom:0;left:${AMMO_SAFE_STOP_RATIO * 100}%;width:2px`;
+            track.append(fill, safeMark);
+            const stop = createInventoryElement('button', 'amber-border px-3 py-1 hover:bg-amber-900', 'STOP');
+            stop.type = 'button';
+            stop.addEventListener('click', stopAmmoTransfer);
+            panel.append(title, track, stop);
+            document.body.appendChild(panel);
+            return panel;
+        }
+
+        function endAmmoTransfer(message) {
+            if (ammoTransfer) clearInterval(ammoTransfer.timer);
+            ammoTransfer = null;
+            getAmmoPanel().classList.add('hidden');
+            if (message) {
+                document.getElementById('inventory-status').textContent = message;
+                getActionStatusElement().textContent = message;
+            }
+        }
+
+        function startAmmoTransfer(type, boxId, reference) {
+            if (!playerSession) return;
+            if (ammoTransfer) {
+                document.getElementById('inventory-status').textContent = 'IMPOSSIBLE : un transfert est déjà en cours.';
+                return;
+            }
+            const op = { type, itemId: boxId, otherId: reference, playerUid: playerSession.uid };
+            try {
+                applyInventoryOp(JSON.parse(JSON.stringify(currentState.inventories)), op);
+            } catch (error) {
+                document.getElementById('inventory-status').textContent = `IMPOSSIBLE : ${error.message}`;
+                return;
+            }
+            const panel = getAmmoPanel();
+            document.getElementById('ammo-transfer-title').textContent = type === 'fill_magazine' ? 'REMPLISSAGE DU CHARGEUR…' : 'VIDAGE DU CHARGEUR…';
+            panel.classList.remove('hidden');
+            ammoTransfer = { type, boxId, reference, cycleStart: Date.now(), transferred: 0, timer: setInterval(tickAmmoTransfer, 100) };
+            tickAmmoTransfer();
+        }
+
+        function tickAmmoTransfer() {
+            if (!ammoTransfer) return;
+            const progress = (Date.now() - ammoTransfer.cycleStart) / AMMO_TRANSFER_MS;
+            if (progress < 1) {
+                document.getElementById('ammo-transfer-fill').style.width = `${Math.max(0, progress) * 100}%`;
+                return;
+            }
+            const { type, boxId, reference } = ammoTransfer;
+            requestInventoryOp(type, boxId, reference);
+            ammoTransfer.transferred += 1;
+            ammoTransfer.cycleStart = Date.now();
+            document.getElementById('ammo-transfer-fill').style.width = '0%';
+            try {
+                applyInventoryOp(JSON.parse(JSON.stringify(currentState.inventories)), { type, itemId: boxId, otherId: reference, playerUid: playerSession.uid });
+            } catch (error) {
+                endAmmoTransfer(`TRANSFERT TERMINÉ : ${ammoTransfer.transferred} cartouche(s).`);
+            }
+        }
+
+        function stopAmmoTransfer() {
+            if (!ammoTransfer) return;
+            const { type, boxId, reference, cycleStart, transferred } = ammoTransfer;
+            const progress = (Date.now() - cycleStart) / AMMO_TRANSFER_MS;
+            endAmmoTransfer(`TRANSFERT ARRÊTÉ : ${transferred} cartouche(s).`);
+            if (progress >= AMMO_SAFE_STOP_RATIO) requestInventoryOp(type, boxId, reference, { lost: true });
+        }
+
+        function requestInventoryOp(type, itemId, otherId = null, extra = {}) {
+            if (!playerSession) return;
+            const op = { type, itemId, otherId: otherId || null, playerUid: playerSession.uid, ...extra };
+            const status = document.getElementById('inventory-status');
+            const showMessage = text => {
+                status.textContent = text;
+                getActionStatusElement().textContent = text;
+            };
+            try {
+                if (op.type === 'recharge' && !canModifyGame()) {
+                    if (!actionQueueRef) throw new Error('connexion Firebase requise pour le test de Comtech.');
+                    const battery = (currentState.inventories[playerSession.uid] || []).find(item => item.id === itemId);
+                    applyInventoryOp(JSON.parse(JSON.stringify(currentState.inventories)), op);
+                    if (getMyAction('recharge', `recharge:${itemId}:${otherId}`)) throw new Error('demande déjà en attente du MJ.');
+                    submitAction('recharge', `recharge:${itemId}:${otherId}`, null, `Recharge via ${battery?.name || 'batterie'} (test de Comtech)`, 0, { itemId, otherId });
+                    return;
+                }
+                if (canModifyGame() || !inventoryOpsRef) {
+                    showMessage(applyInventoryOp(currentState.inventories, op));
+                    if (canModifyGame()) publishGameState();
+                } else {
+                    const message = applyInventoryOp(JSON.parse(JSON.stringify(currentState.inventories)), op);
+                    inventoryOpsRef.push({ ...op, createdAt: firebase.database.ServerValue.TIMESTAMP });
+                    // Retour immédiat pour le joueur ; l'état du MJ fait foi à sa prochaine publication.
+                    applyInventoryOp(currentState.inventories, op);
+                    showMessage(message);
+                }
+                refreshInventoryViews();
+            } catch (error) {
+                showMessage(`IMPOSSIBLE : ${error.message}`);
+            }
+        }
+
+        function handleInventoryOpAdded(snapshot) {
+            const op = snapshot.val();
+            snapshot.ref.remove();
+            if (!op || !canModifyGame() || op.type === 'recharge') return;
+            try {
+                applyInventoryOp(currentState.inventories, op);
+                publishGameState();
+                refreshInventoryViews();
+            } catch (error) {
+                console.warn('Opération d’inventaire ignorée :', error.message);
+            }
         }
 
         function createInventoryElement(tagName, className, text) {
@@ -459,19 +956,134 @@
                 if (items.length === 0) {
                     section.appendChild(createInventoryElement('p', 'text-amber-200', 'Aucun objet transporté pour le moment.'));
                 } else {
+                    const isOwn = ownerId === playerSession.uid;
                     const list = createInventoryElement('ul', 'space-y-3');
                     items.forEach(item => {
                         const row = createInventoryElement('li', 'border-b border-amber-800 pb-2');
                         const quantityText = item.quantity > 1 ? ` × ${item.quantity}` : '';
+                        const weaponDef = LOOT_CATALOG[item.catalogId]?.weapon;
                         row.appendChild(createInventoryElement('div', 'font-bold text-amber-100', `${item.name}${quantityText}`));
                         if (item.content) {
                             row.appendChild(createInventoryElement(
                                 'div',
                                 'text-amber-400',
-                                `Contenu : ${item.content.current}/${item.content.capacity} ${item.content.unit}`
+                                `Contenu : ${formatContentValue(item.content.current)}/${item.content.capacity} ${item.content.unit}${item.lit ? ' — ALLUMÉE' : ''}`
+                            ));
+                        }
+                        if (item.equipped) row.appendChild(createInventoryElement('div', 'text-green-400 font-bold', 'ÉQUIPÉ'));
+                        if (item.slung) row.appendChild(createInventoryElement('div', 'text-green-400 font-bold', 'DANS LE DOS'));
+                        const rowDef = LOOT_CATALOG[item.catalogId] || {};
+                        if (rowDef.ammo) row.appendChild(createInventoryElement('div', 'text-amber-400', `Calibre : ${CALIBERS[rowDef.ammo.caliber] || rowDef.ammo.caliber}`));
+                        Object.entries(item.attachments || {}).forEach(([slot, accessory]) => {
+                            const detail = accessory.content
+                                ? ` ${formatContentValue(accessory.content.current)}/${accessory.content.capacity} ${accessory.content.unit}${accessory.lit ? ' — ALLUMÉE' : ''}`
+                                : '';
+                            row.appendChild(createInventoryElement('div', 'text-amber-400', `Monté (${slot}) : ${accessory.name}${detail}`));
+                        });
+                        if (weaponDef) {
+                            row.appendChild(createInventoryElement(
+                                'div',
+                                item.magazine ? 'text-amber-400' : 'text-red-400',
+                                item.magazine
+                                    ? `Chargeur inséré : ${item.magazine.current}/${item.magazine.capacity} ${item.magazine.unit}`
+                                    : 'Aucun chargeur — glissez un chargeur compatible ici'
                             ));
                         }
                         if (item.description) row.appendChild(createInventoryElement('div', 'text-sm text-amber-200', item.description));
+
+                        if (isOwn) {
+                            const def = LOOT_CATALOG[item.catalogId] || {};
+                            const isMagazine = !!item.content && items.some(other => LOOT_CATALOG[other.catalogId]?.weapon?.magazine === item.catalogId);
+                            const isMountable = !!def.attachment && items.some(other => canAttach(other, item));
+                            if (isMagazine || isMountable || def.recharger) {
+                                row.draggable = true;
+                                row.classList.add('cursor-grab');
+                                row.addEventListener('dragstart', event => {
+                                    event.dataTransfer.setData('text/plain', item.id);
+                                    event.dataTransfer.effectAllowed = 'move';
+                                });
+                            }
+                            if (weaponDef || def.lamp) {
+                                row.addEventListener('dragover', event => {
+                                    event.preventDefault();
+                                    row.classList.add('bg-amber-900', 'bg-opacity-40');
+                                });
+                                row.addEventListener('dragleave', () => row.classList.remove('bg-amber-900', 'bg-opacity-40'));
+                                row.addEventListener('drop', event => {
+                                    event.preventDefault();
+                                    row.classList.remove('bg-amber-900', 'bg-opacity-40');
+                                    const dragged = items.find(other => other.id === event.dataTransfer.getData('text/plain'));
+                                    if (!dragged || dragged.id === item.id) return;
+                                    const draggedDef = LOOT_CATALOG[dragged.catalogId] || {};
+                                    if (draggedDef.recharger && def.lamp) requestInventoryOp('recharge', dragged.id, item.id);
+                                    else if (draggedDef.recharger && getMountedLight(item)) requestInventoryOp('recharge', dragged.id, `mounted:${item.id}`);
+                                    else if (weaponDef && draggedDef.attachment) requestInventoryOp('mount', item.id, dragged.id);
+                                    else if (weaponDef) requestInventoryOp('load', item.id, dragged.id);
+                                    else document.getElementById('inventory-status').textContent = 'IMPOSSIBLE : combinaison impossible.';
+                                });
+                            }
+
+                            const actions = createInventoryElement('div', 'flex flex-wrap gap-2 mt-2');
+                            const makeButton = (label, handler) => {
+                                const button = createInventoryElement('button', 'amber-border px-3 py-1 text-amber-100 hover:bg-amber-900', label);
+                                button.type = 'button';
+                                button.addEventListener('click', handler);
+                                actions.appendChild(button);
+                            };
+                            const batteries = items.filter(other => LOOT_CATALOG[other.catalogId]?.recharger && other.content);
+                            // Boutons de transfert entre un chargeur (holder.current/capacity) et les boîtes de même calibre.
+                            const addAmmoButtons = (reference, holder, caliber) => {
+                                items
+                                    .filter(box => LOOT_CATALOG[box.catalogId]?.ammo?.box && box.content && LOOT_CATALOG[box.catalogId].ammo.caliber === caliber)
+                                    .forEach(box => {
+                                        const boxLabel = `${box.name} ${box.content.current}/${box.content.capacity}`;
+                                        if (holder.current < holder.capacity && box.content.current > 0) {
+                                            makeButton(`Remplir depuis ${boxLabel}`, () => startAmmoTransfer('fill_magazine', box.id, reference));
+                                        }
+                                        if (holder.current > 0 && box.content.current < box.content.capacity) {
+                                            makeButton(`Vider dans ${boxLabel}`, () => startAmmoTransfer('empty_magazine', box.id, reference));
+                                        }
+                                    });
+                            };
+                            if (def.hands) {
+                                if (item.slung) makeButton(`Reprendre en main (${def.hands} main${def.hands > 1 ? 's' : ''})`, () => requestInventoryOp('equip', item.id));
+                                makeButton(
+                                    item.equipped || item.slung ? 'Ranger' : `Équiper (${def.hands} main${def.hands > 1 ? 's' : ''})`,
+                                    () => requestInventoryOp(item.equipped || item.slung ? 'unequip' : 'equip', item.id)
+                                );
+                            }
+                            if (weaponDef) {
+                                items
+                                    .filter(other => other.catalogId === weaponDef.magazine && other.content)
+                                    .forEach(magazine => makeButton(
+                                        `Charger (${magazine.content.current}/${magazine.content.capacity})`,
+                                        () => requestInventoryOp('load', item.id, magazine.id)
+                                    ));
+                                if (item.magazine) makeButton('Retirer le chargeur', () => requestInventoryOp('eject', item.id));
+                                if (item.magazine) addAmmoButtons(`loaded:${item.id}`, item.magazine, LOOT_CATALOG[item.magazine.catalogId]?.ammo?.caliber);
+                                Object.keys(item.attachments || {}).forEach(slot => makeButton(
+                                    `Retirer : ${item.attachments[slot].name}`,
+                                    () => requestInventoryOp('unmount', item.id, slot)
+                                ));
+                                items
+                                    .filter(other => canAttach(item, other) && !item.attachments?.[LOOT_CATALOG[other.catalogId].attachment.slot])
+                                    .forEach(accessory => makeButton(`Monter ${accessory.name}`, () => requestInventoryOp('mount', item.id, accessory.id)));
+                                if (getMountedLight(item)) {
+                                    batteries.forEach(battery => makeButton(
+                                        `Recharger la lampe montée (${battery.name} ${formatContentValue(battery.content.current)}%)`,
+                                        () => requestInventoryOp('recharge', battery.id, `mounted:${item.id}`)
+                                    ));
+                                }
+                            }
+                            if (def.ammo?.magazine && item.content) addAmmoButtons(item.id, item.content, def.ammo.caliber);
+                            if (def.lamp) {
+                                batteries.filter(battery => battery.id !== item.id).forEach(battery => makeButton(
+                                    `Recharger (${battery.name} ${formatContentValue(battery.content.current)}%)`,
+                                    () => requestInventoryOp('recharge', battery.id, item.id)
+                                ));
+                            }
+                            if (actions.childElementCount > 0) row.appendChild(actions);
+                        }
                         list.appendChild(row);
                     });
                     section.appendChild(list);
@@ -519,7 +1131,7 @@
                     publishGameState();
                     openSubZone(globalKey, zoneId, false);
                     getActionStatusElement().textContent = `${targetLabel} AJOUTÉ À L’INVENTAIRE.`;
-                    if (!document.getElementById('inventory-overlay').classList.contains('hidden')) renderInventoryContents();
+                    refreshInventoryViews();
                 } catch (error) {
                     getActionStatusElement().textContent = `RÉCUPÉRATION REFUSÉE : ${error.message}`;
                 }
@@ -554,7 +1166,9 @@
                 ? `FORCAGE DE PORTE - NIVEAU ${action.level}/5`
                 : action.targetType === 'loot'
                     ? `OUVERTURE DU BUTIN - NIVEAU ${action.level}/5`
-                    : `PRISE DE BUTIN - ${action.targetLabel}`;
+                    : action.targetType === 'recharge'
+                        ? `RECHARGE DE LAMPE (COMTECH)`
+                        : `PRISE DE BUTIN - ${action.targetLabel}`;
             element.textContent = action.status === 'pending'
                 ? `ACTION EN ATTENTE DE VALIDATION DU MJ : ${actionLabel}`
                 : action.status === 'approved'
@@ -577,7 +1191,7 @@
                 ? 'FORCAGE DE PORTE'
                 : action.targetType === 'loot'
                     ? 'OUVERTURE DU BUTIN'
-                    : 'PRISE D’OBJET';
+                    : action.targetType === 'recharge' ? 'TEST DE COMTECH : RECHARGE DE LAMPE' : 'PRISE D’OBJET';
             const pickupSource = action.targetType === 'loot_pickup'
                 ? getLootSource(action.globalKey, action.zoneId, action.groupId, action.itemIndex)
                 : null;
@@ -588,10 +1202,11 @@
                 `Joueur : ${action.playerName}`,
                 `Action : ${actionLabel}`,
                 `Cible : ${action.targetLabel}`,
+                ...(action.targetType === 'recharge' ? ['Le joueur a-t-il réussi son test de Comtech ?'] : []),
                 ...(action.targetType === 'loot_pickup' ? [
                     `Quantité : ${action.quantity}`,
                     ...(pickupContent ? [`Contenu à l’acquisition : ${pickupContent.capacity}/${pickupContent.capacity} ${pickupContent.unit}`] : [])
-                ] : [`Niveau proposé : ${action.level}/5`])
+                ] : action.targetType === 'recharge' ? [] : [`Niveau proposé : ${action.level}/5`])
             ].join('\n');
             document.getElementById('action-validation-error').textContent = '';
             modal.classList.remove('hidden');
@@ -607,12 +1222,19 @@
                 currentState.unlockedLoot[action.targetId] = action.level;
             } else if (action.targetType === 'loot_pickup') {
                 addLootToInventory(action, actionId);
+            } else if (action.targetType === 'recharge') {
+                applyInventoryOp(currentState.inventories, {
+                    type: 'recharge',
+                    itemId: action.itemId,
+                    otherId: action.otherId,
+                    playerUid: action.playerUid
+                });
             } else {
                 throw new Error('Type d’action non reconnu.');
             }
             publishGameState();
             renderSharedState();
-            if (!document.getElementById('inventory-overlay').classList.contains('hidden')) renderInventoryContents();
+            refreshInventoryViews();
         }
 
         async function resolveAction(actionId, status) {
@@ -655,20 +1277,6 @@
             } catch (error) {
                 getActionStatusElement().textContent = `ERREUR D’ENVOI DE LA DEMANDE : ${error.message}`;
             }
-        }
-
-        function watchGameState() {
-            if (!gameStateRef || playerSession?.role === 'master') return;
-            gameStateRef.on('value', snapshot => {
-                const sharedState = snapshot.val();
-                if (!sharedState) return;
-                currentState = { ...currentState, ...sharedState, lootInputZone: null, doorInputZone: null };
-                currentState.inventories = currentState.inventories || {};
-                currentState.inventoryOwners = currentState.inventoryOwners || {};
-                currentState.lootClaims = currentState.lootClaims || {};
-                renderSharedState();
-                if (!document.getElementById('inventory-overlay').classList.contains('hidden')) renderInventoryContents();
-            });
         }
 
         function registerLocalSession(pseudo, characterRole) {
@@ -748,22 +1356,13 @@
                     renderMasterValidation();
                 });
                 gameStateRef = gameRef.child('state');
+                inventoryOpsRef = gameRef.child('inventoryOps');
+                if (playerSession.role === 'master') inventoryOpsRef.on('child_added', handleInventoryOpAdded);
                 gameStateRef.on('value', snapshot => {
                     if (playerSession.role === 'master') return;
                     const sharedState = snapshot.val();
                     if (!sharedState) return;
-                    const localNavigation = {
-                        view: currentState.view,
-                        currentGlobalKey: currentState.currentGlobalKey,
-                        currentZoneId: currentState.currentZoneId,
-                        currentReportId: currentState.currentReportId
-                    };
-                    currentState = { ...currentState, ...sharedState, ...localNavigation, lootInputZone: null, doorInputZone: null };
-                    currentState.inventories = currentState.inventories || {};
-                    currentState.inventoryOwners = currentState.inventoryOwners || {};
-                    currentState.lootClaims = currentState.lootClaims || {};
-                    renderSharedState();
-                    if (!document.getElementById('inventory-overlay').classList.contains('hidden')) renderInventoryContents();
+                    applySharedSnapshot(sharedState, true);
                 });
                 gameRef.child('players').on('value', snapshot => updatePlayersDisplay(snapshot.val()));
                 publishPlayerView();
@@ -1087,7 +1686,7 @@
             const getLootDisplay = (loot, lootLevel) => {
                 const definition = getLootDefinition(loot);
                 if (typeof loot === 'string') return definition.name;
-
+                if (isAmmoBoxLoot(loot)) return `${definition.name} (${getLootAmmoCount(loot, lootLevel)} cartouches)`;
                 return `${getLootQuantity(loot, lootLevel)}x ${definition.name}`;
             };
 

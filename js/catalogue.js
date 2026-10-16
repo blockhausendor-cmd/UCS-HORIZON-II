@@ -1,34 +1,80 @@
+        // Calibres fictifs : une arme, un chargeur et une boîte de munitions doivent partager le même.
+        const CALIBERS = {
+            cal3: "Cal.3",
+            cal5: "Cal.5",
+            cal7: "Cal.7",
+            cal10: "Cal.10"
+        };
+
+        // Équipements sur arme : une arme déclare ses `tags` et ses emplacements (`slots`).
+        // Un accessoire déclare `attachment: { slot, requiresTags?, items? }` :
+        // il se monte si l'arme a l'emplacement, et porte tous les tags requis ou figure dans `items`.
+        // Emplacements existants : "lampe", "sangle". Tags existants : arme, arme_a_feu, militaire, civil.
         const LOOT_CATALOG = {
             drz32_rifle: {
                 name: "Fusil automatique court DRZ-32",
-                description: "Fusil automatique compact de fabrication militaire, conçu pour les engagements rapprochés."
+                description: "Fusil automatique compact de fabrication militaire, conçu pour les engagements rapprochés.",
+                hands: 2,
+                tags: ["arme", "arme_a_feu", "militaire"],
+                slots: ["lampe", "sangle"],
+                weapon: { magazine: "drz32_magazine", caliber: "cal5", useAmount: 3, useLabel: "Tirer (rafale de 3)" }
             },
             drz32_magazine: {
                 name: "Chargeur pour fusil DRZ-32",
                 description: "Chargeur de 30 coups à balles perforantes de qualité militaire pour DRZ-32.",
-                content: { capacity: 30, unit: "cartouches" }
-            },
-            drz32_ammunition_box: {
-                name: "Boîte de munitions compatible DRZ-32",
-                description: "Boîte de munitions militaires compatibles avec le fusil automatique court DRZ-32."
+                content: { capacity: 30, unit: "cartouches" },
+                ammo: { caliber: "cal5", magazine: true }
             },
             drz32_sling: {
                 name: "Sangle pour fusil DRZ-32",
-                description: "Sangle réglable destinée au transport et au maintien d'un fusil DRZ-32."
+                description: "Sangle réglable destinée au transport et au maintien d'un fusil DRZ-32.",
+                attachment: { slot: "sangle", items: ["drz32_rifle"] }
             },
             c17_pistol: {
                 name: "Arme de poing C17Z",
-                description: "Arme de poing compacte réglementaire, encore en état d'utilisation."
+                description: "Arme de poing compacte réglementaire, encore en état d'utilisation.",
+                hands: 1,
+                tags: ["arme", "arme_a_feu", "civil"],
+                slots: ["lampe"],
+                weapon: { magazine: "c17_magazine", caliber: "cal3", useAmount: 1, useLabel: "Tirer (1 cartouche)" }
             },
             c17_magazine: {
                 name: "Chargeur pour arme C17Z",
                 description: "Chargeur standard compatible avec l'arme de poing C17Z.",
-                content: { capacity: 24, unit: "cartouches" }
+                content: { capacity: 24, unit: "cartouches" },
+                ammo: { caliber: "cal3", magazine: true }
+            },
+            ammo_box_cal3: {
+                name: "Boîte de cartouches Cal.3",
+                description: "Boîte de 30 cartouches de calibre 3, compatibles avec la plupart des armes de poing.",
+                content: { capacity: 30, unit: "cartouches" },
+                ammo: { caliber: "cal3", box: true }
+            },
+            ammo_box_cal5: {
+                name: "Boîte de cartouches Cal.5",
+                description: "Boîte de 60 cartouches de calibre 5.",
+                content: { capacity: 60, unit: "cartouches" },
+                ammo: { caliber: "cal5", box: true }
+            },
+            ammo_box_cal7: {
+                name: "Boîte de cartouches Cal.7",
+                description: "Boîte de 30 cartouches de calibre 7 compatible avec certain fusils ou arme de point de fort calibre.",
+                content: { capacity: 30, unit: "cartouches" },
+                ammo: { caliber: "cal7", box: true }
+            },
+            ammo_box_cal10: {
+                name: "Boîte de cartouches Cal.10",
+                description: "Boîte de 20 cartouches de calibre 10.",
+                content: { capacity: 20, unit: "cartouches" },
+                ammo: { caliber: "cal10", box: true }
             },
             tactical_light: {
                 name: "Lampe tactique",
-                description: "Lampe tactique à fixation universelle pour arme, utile dans les zones privées d'éclairage.",
-                content: { capacity: 100, unit: "%" }
+                description: "Lampe tactique à fixation universelle pour arme à feu, utile dans les zones privées d'éclairage. Celle peut être fixé sur certaine arme équipé de rail. Vous pouvez ainsi l'utiliser depuis une arme équipé sans utilsé de main pour la tenir",
+                content: { capacity: 80, unit: "%" },
+                hands: 1,
+                lamp: { drainPerMinute: 1 },
+                attachment: { slot: "lampe", requiresTags: ["arme_a_feu"] }
             },
             ballistic_vest: {
                 name: "Gilet pare-éclats",
@@ -145,7 +191,8 @@
             portable_battery: {
                 name: "Batterie portable",
                 description: "Batterie autonome destinée à alimenter des équipements portatifs.",
-                content: { capacity: 100, unit: "%" }
+                content: { capacity: 100, unit: "%" },
+                recharger: true
             },
             manual_welder: {
                 name: "Vieux poste à souder manuel",
@@ -282,7 +329,9 @@
             weak_flashlight: {
                 name: "Lampe de poche affaiblie",
                 description: "Une torche posée sur le flanc dont le faisceau lumineux grésille faiblement.",
-                content: { capacity: 100, unit: "%" }
+                content: { capacity: 50, unit: "%" },
+                hands: 1,
+                lamp: { drainPerMinute: 1 }
             },
             looted_first_aid_kit: {
                 name: "Kit de soins pillé",

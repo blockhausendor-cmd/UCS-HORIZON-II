@@ -191,7 +191,7 @@
                     items: [
                         { item: "drz32_rifle", min: 1, max: 1 },
                         { item: "drz32_magazine", min: 1, max: 2 },
-                        { item: "drz32_ammunition_box", min: 1, max: 1 },
+                        { item: "ammo_box_cal5", min: 10, max: 60 },
                         { item: "drz32_sling", min: 1, max: 2 },
                         { item: "c17_pistol", min: 1, max: 1 },
                         { item: "c17_magazine", min: 1, max: 1 },
