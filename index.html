@@ -65,6 +65,11 @@
                     <option value="">SELECTIONNER UN ROLE</option>
                 </select>
             </div>
+            <div id="secret-role-row" class="hidden">
+                <label class="block text-lg" for="secret-role">ROLE SECRET</label>
+                <input id="secret-role" type="text" readonly tabindex="-1"
+                       class="w-full bg-black border border-red-700 p-2 text-xl text-red-400 outline-none">
+            </div>
             <div id="session-error" class="session-error text-lg" role="alert"></div>
             <button type="submit" class="btn-retro w-full p-3 text-xl font-bold">[ ENTRER DANS LA PARTIE ]</button>
         </form>
@@ -107,6 +112,7 @@
                 <div id="active-session-code" class="text-amber-400 text-base md:text-lg">SESSION : --</div>
                 <div id="connection-mode" class="text-amber-600 text-xs md:text-sm">RESEAU : EN ATTENTE</div>
                 <div id="system-clock">--:--:-- UTC</div>
+                <button id="logout-button" type="button" class="hidden btn-retro px-2 py-0 mt-1 text-sm font-bold">DÉCONNEXION</button>
             </div>
         </header>
 
@@ -182,6 +188,11 @@
         };
         const GAME_ID = 'HORYZON-517';
         const MASTER_NAME = 'Dieu';
+        // Easter egg : rôle secret affiché à la connexion, sans effet en jeu.
+        const SECRET_ROLES = {
+            katec: "Espion de l'UPP",
+            tadashi: 'Bisous et clopes en chocolat'
+        };
         const MASTER_EMAIL = 'blockhaus.endor@outlook.fr';
         const isFirebaseConfigured = Object.values(FIREBASE_CONFIG).every(Boolean);
         let sessionCode = '';
@@ -243,6 +254,22 @@
         let playerSession = null;
         let gameStateRef = null;
         let playerPresenceRef = null;
+        let playersRootRef = null;
+        const playerPresenceRefFor = uid => playersRootRef?.child(uid);
+
+        // Déconnexion : le joueur reste affiché en rouge chez le MJ pendant une minute, puis son entrée est retirée.
+        async function logout() {
+            try {
+                if (playerPresenceRef) {
+                    if (playerSession?.role === 'master') await playerPresenceRef.remove();
+                    else await playerPresenceRef.update({ connected: false, disconnectedAt: firebase.database.ServerValue.TIMESTAMP });
+                }
+                await firebase.auth().signOut();
+            } catch (error) {
+                console.error(error);
+            }
+            location.reload();
+        }
         let actionQueueRef = null;
         let inventoryOpsRef = null;
         let pendingActions = {};
@@ -366,10 +393,15 @@
         }
 
         let connectedPlayers = {};
+        const DISCONNECT_ALERT_MS = 60000;
+        let serverTimeOffset = 0;
+
+        const isPlayerOnline = player => player.connected !== false;
 
         function updatePlayersDisplay(players) {
             connectedPlayers = players || {};
             const playerNames = Object.values(players || {})
+                .filter(isPlayerOnline)
                 .map(player => player.role === 'master'
                     ? `MJ / Maître de jeu / ${player.pseudo}`
                     : `${player.faction === 'military' ? 'MILITAIRE' : 'CIVIL'} / ${player.characterRole} / ${player.pseudo}`)
@@ -408,14 +440,26 @@
                 return;
             }
             list.replaceChildren();
+            const now = Date.now() + serverTimeOffset;
             const entries = Object.entries(players || {})
-                .filter(([, player]) => player.role !== 'master')
+                .filter(([uid, player]) => {
+                    if (player.role === 'master') return false;
+                    if (isPlayerOnline(player)) return true;
+                    if (now - (player.disconnectedAt || 0) < DISCONNECT_ALERT_MS) return true;
+                    playerPresenceRefFor(uid)?.remove().catch(() => {});
+                    return false;
+                })
                 .sort(([, first], [, second]) => (first.pseudo || '').localeCompare(second.pseudo || '', 'fr'));
             if (entries.length === 0) {
                 list.appendChild(createInventoryElement('li', 'text-amber-600', 'AUCUN JOUEUR CONNECTÉ'));
             }
             entries.forEach(([uid, player]) => {
                 const entry = createInventoryElement('li', 'border-b border-amber-800 pb-2');
+                if (!isPlayerOnline(player)) {
+                    entry.appendChild(createInventoryElement('div', 'font-bold text-red-500 animate-pulse', `${player.pseudo || 'Joueur'} — DÉCONNECTÉ`));
+                    list.appendChild(entry);
+                    return;
+                }
                 const title = createInventoryElement('div', 'flex items-center gap-2 font-bold text-amber-100');
                 const dot = createInventoryElement('span', `inline-block w-3 h-3 rounded-full ${hasLitLamp(uid) ? 'bg-green-500' : 'bg-amber-900'}`);
                 dot.title = hasLitLamp(uid) ? 'Lampe allumée' : 'Aucune lampe allumée';
@@ -423,6 +467,7 @@
                 entry.append(
                     title,
                     createInventoryElement('div', 'text-sm text-amber-400', `${player.faction === 'military' ? 'MILITAIRE' : 'CIVIL'} / ${player.characterRole || ''}`),
+                    ...(player.secretRole ? [createInventoryElement('div', 'text-sm text-red-400 italic', `Rôle secret : ${player.secretRole}`)] : []),
                     createInventoryElement('div', 'text-sm text-amber-200', player.viewLabel || 'ACCUEIL')
                 );
                 list.appendChild(entry);
@@ -1424,7 +1469,7 @@
                             }
                             if (!item.equipped && !item.slung && transfersRef) {
                                 Object.entries(connectedPlayers)
-                                    .filter(([uid, player]) => uid !== playerSession.uid && player.role !== 'master')
+                                    .filter(([uid, player]) => uid !== playerSession.uid && player.role !== 'master' && isPlayerOnline(player))
                                     .forEach(([uid, player]) => makeButton(`Envoyer à ${player.pseudo}`, () => requestTransfer(item.id, uid)));
                             }
                             if (actions.childElementCount > 0) row.appendChild(actions);
@@ -1721,8 +1766,14 @@
                 }
                 const playerRef = gameRef.child(`players/${playerSession.uid}`);
                 playerPresenceRef = playerRef;
-                await playerRef.set({ pseudo, role, characterRole: playerSession.characterRole, faction: playerSession.faction, connected: true });
+                await playerRef.set({ pseudo, role, characterRole: playerSession.characterRole, faction: playerSession.faction, connected: true, ...(SECRET_ROLES[pseudo.toLocaleLowerCase('fr-FR')] && { secretRole: SECRET_ROLES[pseudo.toLocaleLowerCase('fr-FR')] }) });
+                if (role !== 'master') await gameRef.child(`playerRoles/${getPlayerViewKey(pseudo)}`).set(playerSession.characterRole).catch(() => {});
                 playerRef.onDisconnect().remove();
+                if (playerSession.role !== 'master') {
+                    playerRef.onDisconnect().update({ connected: false, disconnectedAt: firebase.database.ServerValue.TIMESTAMP });
+                }
+                playersRootRef = gameRef.child('players');
+                firebase.database().ref('.info/serverTimeOffset').on('value', snapshot => { serverTimeOffset = snapshot.val() || 0; });
                 playerViewRef = gameRef.child(`playerViews/${getPlayerViewKey(pseudo)}`);
                 await restorePlayerView();
                 actionQueueRef = gameRef.child('pendingActions');
@@ -1762,6 +1813,7 @@
                 document.getElementById('active-session-code').textContent = `SESSION : ${sessionCode}`;
                 document.getElementById('connection-mode').textContent = 'RESEAU : SYNCHRONISE';
                 document.getElementById('session-overlay').classList.add('hidden');
+                document.getElementById('logout-button').classList.remove('hidden');
                 document.getElementById('inventory-tab-btn').classList.remove('hidden');
                 if (playerSession.role === 'master') publishGameState();
             } catch (error) {
@@ -1783,6 +1835,8 @@
             const characterRoleSelect = document.getElementById('character-role');
             const passwordRow = document.getElementById('master-password-row');
             document.getElementById('load-sessions-button').addEventListener('click', loadSavedSessionsList);
+            document.getElementById('logout-button').addEventListener('click', logout);
+            setInterval(() => { if (playerSession?.role === 'master') updatePlayerViews(); }, 5000);
             initEquippedPanelDrag();
             document.getElementById('saved-sessions-select').addEventListener('change', selectSavedSession);
             document.getElementById('delete-session-button').addEventListener('click', deleteSavedSession);
@@ -1818,11 +1872,32 @@
                 sessionCodeInput.required = !isMaster;
                 masterSessionCodeInput.required = isMaster;
                 characterRoleSelect.required = !isMaster;
+                const secretRole = SECRET_ROLES[normalizePseudo(pseudoInput.value).toLocaleLowerCase('fr-FR')];
+                document.getElementById('secret-role-row').classList.toggle('hidden', !secretRole);
+                document.getElementById('secret-role').value = secretRole || '';
                 if (isMaster && masterSessionCodeInput.value.length !== 4) {
                     masterSessionCodeInput.value = generateSessionCode();
                 }
             };
             pseudoInput.addEventListener('input', updateSessionFields);
+
+            // Le rôle est mémorisé par table et par pseudo (`playerRoles`) : il est retrouvé dès que pseudo et table sont saisis.
+            let roleLookupId = 0;
+            const prefillKnownRole = async () => {
+                const pseudo = normalizePseudo(pseudoInput.value);
+                const code = normalizeSessionCode(sessionCodeInput.value);
+                const lookupId = ++roleLookupId;
+                if (!isFirebaseConfigured || !pseudo || isMasterPseudo(pseudo) || code.length !== 4) return;
+                try {
+                    if (!firebase.auth().currentUser) await firebase.auth().signInAnonymously();
+                    const role = (await firebase.database().ref(`games/${code}/playerRoles/${getPlayerViewKey(pseudo)}`).once('value')).val();
+                    if (lookupId === roleLookupId && role && getCharacterRole(role)) characterRoleSelect.value = role;
+                } catch (error) {
+                    // Rôle inconnu ou lecture refusée : le joueur choisit lui-même.
+                }
+            };
+            pseudoInput.addEventListener('input', prefillKnownRole);
+            sessionCodeInput.addEventListener('input', prefillKnownRole);
             sessionCodeInput.addEventListener('input', () => {
                 sessionCodeInput.value = normalizeSessionCode(sessionCodeInput.value);
             });
