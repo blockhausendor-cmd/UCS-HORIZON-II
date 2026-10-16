@@ -153,7 +153,10 @@
                     title: "MATÉRIEL RÉCUPÉRABLE",
                     items: [
                         "1x Disque de meuleuse portative",
-                        "1x Briquet a essence en bon etat"
+                        "1x Briquet a essence en bon etat",
+                        "Détecteur de mouvement",
+                        "Sangle détecteur de mouvement",
+                        "Batterie DM18V"
                     ]
                 }
             ],
