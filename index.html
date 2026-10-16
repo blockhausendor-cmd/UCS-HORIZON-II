@@ -118,9 +118,14 @@
                 <div class="mt-4 border-t border-amber-700 pt-3">
                     <div class="text-amber-400 font-bold mb-1">SAUVEGARDE</div>
                     <div id="save-info" class="text-sm text-amber-200 mb-2"></div>
+                    <div class="text-sm text-amber-200">Depuis la dernière sauvegarde</div>
+                    <div id="save-timer" class="text-2xl font-bold mb-2 text-green-400">00:00</div>
                     <textarea id="save-note" rows="3" maxlength="300" placeholder="Note de partie…" class="w-full bg-black border border-amber-500 p-2 text-base text-amber-100 outline-none select-text"></textarea>
                     <button id="save-session-button" type="button" class="btn-retro px-3 py-1 mt-2 text-base font-bold">SAUVEGARDER</button>
-                </div>
+                                        <div class="text-sm text-amber-200 mt-3 mb-1">Sauvegardes (3 max, la plus ancienne est écrasée)</div>
+                                        <select id="backups-select" class="w-full bg-black border border-amber-500 p-1 text-base text-amber-100 outline-none"></select>
+                                        <button id="restore-backup-button" type="button" class="btn-retro px-3 py-1 mt-2 text-base font-bold">RESTAURER</button>
+                                    </div>
             </aside>
             <main id="terminal-screen" class="flex-1 min-w-0 flex flex-col overflow-y-auto pr-2">
                 <!-- Le contenu HTML est généré dynamiquement par JavaScript -->
@@ -627,26 +632,64 @@
             applyEquippedPanelPosition(bar);
         }
 
-        let lastSavedAt = 0;
+        const MAX_BACKUPS = 3;
+        let lastSaveTs = Date.now();
 
-        // La partie vit dans Firebase sous le numéro de table : chaque publication met à jour la date de sauvegarde.
+        // L'état courant vit dans Firebase sous le numéro de table ; les sauvegardes sont des copies manuelles (3 max).
         function publishGameState() {
-            if (gameStateRef && playerSession?.role === 'master') {
-                gameStateRef.set(getSharedState());
-                if (Date.now() - lastSavedAt > 5000) touchSessionSave();
-            }
+            if (gameStateRef && playerSession?.role === 'master') gameStateRef.set(getSharedState());
+        }
+
+        function updateSaveTimer() {
+            const timer = document.getElementById('save-timer');
+            if (!timer || playerSession?.role !== 'master') return;
+            const elapsed = Math.max(0, Math.floor((Date.now() - lastSaveTs) / 1000));
+            const minutes = Math.floor(elapsed / 60);
+            timer.textContent = `${String(minutes).padStart(2, '0')}:${String(elapsed % 60).padStart(2, '0')}`;
+            const colorClass = minutes < 30 ? 'text-green-400' : minutes < 60 ? 'text-orange-400' : 'text-red-500';
+            timer.className = `text-2xl font-bold mb-2 ${colorClass}`;
+        }
+
+        async function refreshBackupsList() {
+            const select = document.getElementById('backups-select');
+            if (!sessionRef || !select) return;
+            const backups = (await sessionRef.parent.child('backups').once('value')).val() || {};
+            select.replaceChildren();
+            Object.entries(backups)
+                .sort(([, first], [, second]) => second.savedAt - first.savedAt)
+                .forEach(([slot, backup]) => select.appendChild(new Option(`${formatSaveDate(backup.savedAt)}${backup.note ? ` — ${backup.note.slice(0, 30)}` : ''}`, slot)));
+            if (!select.options.length) select.appendChild(new Option('Aucune sauvegarde', ''));
+        }
+
+        async function saveGame() {
+            const note = document.getElementById('save-note').value.trim().slice(0, 300);
+            const backupsRef = sessionRef.parent.child('backups');
+            const backups = (await backupsRef.once('value')).val() || {};
+            const freeSlot = Array.from({ length: MAX_BACKUPS }, (_, index) => `slot${index}`).find(slot => !backups[slot]);
+            const oldestSlot = Object.entries(backups).sort(([, first], [, second]) => first.savedAt - second.savedAt)[0]?.[0];
+            const savedAt = Date.now();
+            await backupsRef.child(freeSlot || oldestSlot).set({ savedAt, note, state: getSharedState() });
+            await sessionRef.update({ savedAt, note });
+            lastSaveTs = savedAt;
+            updateSaveTimer();
+            renderSaveInfo((await sessionRef.once('value')).val());
+            await refreshBackupsList();
+        }
+
+        async function restoreBackup() {
+            const slot = document.getElementById('backups-select').value;
+            if (!slot || !confirm('Restaurer cette sauvegarde ? La partie en cours sera remplacée.')) return;
+            const backup = (await sessionRef.parent.child(`backups/${slot}`).once('value')).val();
+            if (!backup?.state) return;
+            // Firebase supprime les objets vides : on les rétablit pour ne pas conserver l'état courant.
+            const emptyState = { unlockedLoot: {}, doorLevels: {}, doorRetryAt: {}, openedZones: {}, inventories: {}, inventoryOwners: {}, lootClaims: {} };
+            applySharedSnapshot({ ...emptyState, ...backup.state });
+            publishGameState();
+            getActionStatusElement().textContent = 'SAUVEGARDE RESTAURÉE.';
         }
 
         function formatSaveDate(timestamp) {
             return timestamp ? new Date(timestamp).toLocaleString('fr-FR') : 'jamais';
-        }
-
-        function touchSessionSave(extra = {}) {
-            if (!sessionRef) return Promise.resolve();
-            lastSavedAt = Date.now();
-            return sessionRef.update({ savedAt: firebase.database.ServerValue.TIMESTAMP, ...extra })
-                .then(() => sessionRef.once('value'))
-                .then(snapshot => renderSaveInfo(snapshot.val()));
         }
 
         function renderSaveInfo(session) {
@@ -1666,6 +1709,9 @@
                     }
                     const sessionData = (await sessionRef.once('value')).val();
                     renderSaveInfo(sessionData);
+                    lastSaveTs = sessionData?.savedAt || Date.now();
+                    updateSaveTimer();
+                    refreshBackupsList().catch(() => {});
                     document.getElementById('save-note').value = sessionData?.note || '';
                 } else {
                     const sessionSnapshot = await gameRef.child('session').once('value');
@@ -1742,9 +1788,12 @@
             document.getElementById('delete-session-button').addEventListener('click', deleteSavedSession);
             document.getElementById('save-session-button').addEventListener('click', () => {
                 const status = getActionStatusElement();
-                touchSessionSave({ note: document.getElementById('save-note').value.trim().slice(0, 300) })
+                saveGame()
                     .then(() => { status.textContent = 'PARTIE SAUVEGARDÉE.'; })
                     .catch(error => { status.textContent = `SAUVEGARDE IMPOSSIBLE : ${error.message}`; });
+            });
+            document.getElementById('restore-backup-button').addEventListener('click', () => {
+                restoreBackup().catch(error => { getActionStatusElement().textContent = `RESTAURATION IMPOSSIBLE : ${error.message}`; });
             });
             document.getElementById('accept-transfer-button').addEventListener('click', () => respondToTransfer('accepted'));
             document.getElementById('reject-transfer-button').addEventListener('click', () => respondToTransfer('rejected'));
@@ -1803,6 +1852,7 @@
             document.getElementById('system-clock').innerText = `${hrs}:${mins}:${secs} UTC`;
         }
         setInterval(updateClock, 1000);
+        setInterval(updateSaveTimer, 1000);
         updateClock();
 
         function formatCooldown(milliseconds) {
