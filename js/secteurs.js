@@ -10,10 +10,33 @@
             ]
         };
 
+        // Pièce scellée : le MJ lance le compte à rebours, puis la porte se verrouille jusqu'à la réparation du badge.
+        const SEALED_SUITES = {
+            suite_1408: {
+                title: "APPARTEMENT 1408",
+                sector: "pantheon",
+                entryZone: "pantheon_h_1408",
+                graceMs: 2 * 60 * 1000,
+                badgeItem: "suite_master_badge",
+                code: "6194",
+                steps: [
+                    { id: "pry", label: "OUVRIR LE BOÎTIER", item: "suite_silver_spoon", text: "La petite cuillère en argent sert de levier pour faire sauter le boîtier fissuré du badge." },
+                    { id: "clean", label: "NETTOYER LA PUCE", item: "suite_longevity_serum", text: "Le sérum périmé dissout la cire noire et la suie qui enrobent la puce." },
+                    { id: "wire", label: "RÉPARER L'ANTENNE", item: "suite_copper_wire", text: "Le fil de cuivre ciselé remplace l'antenne rompue du badge." },
+                    { id: "power", label: "ALIMENTER LA PISTE", item: "suite_clock_cell", text: "La cellule d'horlogerie donne au badge assez de courant pour être lu une fois." }
+                ]
+            }
+        };
+
         const DOOR_SYSTEM = {
             qg_a_door: { title: "FORCER LA PORTE BLINDEE DU QG DE LA SECURITE", difficulty: 2 },
             qg_b_door: { title: "FORCER LA PORTE DU FOND", difficulty: 1 },
-            infirmerie_c_door: { title: "FORCER LA PORTE DU STOCKAGE MEDICAL", difficulty: 1 }
+            infirmerie_c_door: { title: "FORCER LA PORTE DU STOCKAGE MEDICAL", difficulty: 1 },
+            pantheon_vance_door: { title: "FORCER LE SAS PRIVÉ DU PENTHOUSE VANCE", difficulty: 2 },
+            terr_william_door: { title: "FORCER LA PORTE BARRICADÉE DU 404", difficulty: 2 },
+            terr_410_door: { title: "FORCER LA PORTE BARRICADÉE DU 410", difficulty: 1 },
+            pantheon_barricade_door: { title: "FORCER LA PORTE BARRICADÉE DE LA RÉSIDENCE ASHFORD", difficulty: 1 },
+            lis_110_door: { title: "FORCER LA PORTE BARRICADÉE DU 110", difficulty: 1 }
         };
 
         function getDoorDefinition(doorTag) {
@@ -422,6 +445,444 @@ Et j'ai la certitude glaçante que`,
                         accessRequires: "qg_c",
                         desc: "Sur la droite, une rangee de chaises et des postes informatiques en piteux etat. Le corps d'un agent de securite est affale sur une chaise, le visage ecrase contre le bureau.\n\nSur la gauche de la piece se dresse une cage d'armes en grillage renforce.",
                         lootGroups: LOOT_GROUPS.qg_f,
+                        reports: []
+                    }
+                ]
+            },
+//============================================================================
+// SECTEUR 04 - ANNEAU CENTRAL : LE PANTHEON
+//============================================================================
+            pantheon: {
+                title: "SECTEUR 04 - ANNEAU CENTRAL : LE PANTHÉON",
+                description: "L'air est étrangement doux, presque tiède, mais saturé d'un parfum artificiel et tenace d'agrumes qui tente vainement de masquer la moisissure et la chair décomposée.\n\nTout semble suspendu dans un luxe figé. Les baies vitrées factices de tout le secteur affichent le même souvenir : 12 mai 2084, 14 h 30, ciel dégagé sur Genève. Quelqu'un a synchronisé les panoramas avant de mourir ou de s'enfermer.",
+                zones: [
+                    {
+                        id: "pantheon_a",
+                        code: "ZONE A",
+                        name: "La Galerie des Panoramas — couloir principal",
+                        desc: "Le couloir est large et moquetté, tout en longueur, avec une légère courbe qui suit la forme de l'anneau. Il est bordé d'écrans muraux géants. Certains affichent encore un sous-bois verdoyant ou un coucher de soleil sur l'océan terrestre, régulièrement coupés par du grésillement statique.\n\nDe grands conteneurs de voyage en matériaux nobles jonchent le passage. Un panneau dynamique diffuse en boucle un message d'urgence du Conseil, désormais muet. À droite, un panneau mural factice arraché laisse voir des câbles sous tension qui étincellent faiblement et projettent des ombres étirées.\n\nLes portes qui donnent sur ce couloir sont ouvertes. Des valises abandonnées et des symboles du Conseil « libre », peints à la hâte sur plusieurs portes, témoignent de la panique. Au fond de la courbe, la porte 1408 est grande ouverte, et l'air qui s'en échappe sent la cire d'abeille.",
+                        lootGroups: LOOT_GROUPS.pantheon_panorama,
+                        reports: [
+                            {
+                                id: "pantheon_sync",
+                                code: "OBS-PAN-01",
+                                title: "Synchronisation des panoramas",
+                                author: "Système de contrôle environnemental",
+                                date: "12/05/2084 - 14:30",
+                                text: "Toutes les baies vitrées factices du secteur ont été réglées manuellement sur la même date et heure de simulation : 12 mai 2084, 14 h 30, ciel dégagé sur Genève. La modification a été effectuée depuis le panneau central, quelques minutes avant la coupure du réseau."
+                            }
+                        ]
+                    },
+                    {
+                        id: "pantheon_b_vane",
+                        code: "ZONE B",
+                        name: "Résidence du Dr. Vane — pôle scientifique et médical",
+                        parentZone: "pantheon_a",
+                        accessRequires: "pantheon_a",
+                        desc: "Un appartement spacieux au désordre méthodique. Des étagères de livres papier, luxe inestimable sur la station, ont été renversées pour former une barricade derrière la porte blindée. Celle-ci a cédé ; l'accès n'est plus verrouillé.\n\nAu centre du salon, la simulation de la Terre clignote sous un faux ciel étoilé. Un bureau en polymère massif est couvert de dossiers médicaux frappés du sceau de la direction de la station.",
+                        lootGroups: LOOT_GROUPS.pantheon_vane,
+                        reports: [
+                            {
+                                id: "pantheon_vane_audio",
+                                code: "AUDIO-PAN-02",
+                                title: "Enregistrement du Dr. Vane",
+                                author: "Dr. Vane",
+                                date: "Fichier récupéré sur le bureau",
+                                text: "« Le Conseil exige la mise en quarantaine stricte des bas niveaux, mais réquisitionne les meilleures doses de traitement pour l'élite du Panthéon. Ils appellent ça une mesure sanitaire. J'appelle ça un tri. »"
+                            }
+                        ]
+                    },
+                    {
+                        id: "pantheon_c_vance",
+                        code: "ZONE C",
+                        name: "Penthouse d'Oren Vance — entrepreneur et marchand",
+                        parentZone: "pantheon_a",
+                        accessRequires: "pantheon_a",
+                        door: { name: "pantheon_vance_door", difficulty: 2 },
+                        desc: "Un sas privé protège ce penthouse opulent : faux parquet, bar garni de liqueurs synthétiques rares et mobilier design. L'accès est verrouillé.\n\nDeux corps en tenue de soirée sont installés dans des fauteuils face au panorama terrestre factice. Une bouteille entamée et deux verres renversés portent encore les traces d'un fluide noirâtre. Ils ont préféré choisir leur fin plutôt que d'affronter ce qui grattait à leur porte.",
+                        lootGroups: LOOT_GROUPS.pantheon_vance,
+                        reports: []
+                    },
+                    {
+                        id: "pantheon_c_lounge",
+                        code: "ZONE C-1",
+                        name: "Salon panoramique du penthouse",
+                        parentZone: "pantheon_c_vance",
+                        accessRequires: "pantheon_c_vance",
+                        desc: "Le salon s'ouvre sur une baie vitrée simulant Genève sous le soleil. Les deux fauteuils font face à l'image, tournant le dos à la porte. Une marque de main noire macule l'accoudoir du plus proche.",
+                        lootGroups: [{ id: "main", title: "OBJETS DU SALON", items: [] }],
+                        reports: []
+                    },
+                    {
+                        id: "pantheon_c_study",
+                        code: "ZONE C-2",
+                        name: "Bureau et coffre mural",
+                        parentZone: "pantheon_c_vance",
+                        accessRequires: "pantheon_c_vance",
+                        desc: "Le bureau de Vance est presque intact. Un coffre mural encastré est dissimulé derrière un panneau décoratif ; il nécessite un test de piratage ou la clé personnelle de Vance. Le contenu n'est récupérable qu'après ouverture du coffre.",
+                        lootGroups: LOOT_GROUPS.pantheon_vance_study,
+                        reports: []
+                    },
+                    {
+                        id: "pantheon_d",
+                        code: "ZONE D",
+                        name: "Salon commun et sanctuaire du Conseil",
+                        parentZone: "pantheon_a",
+                        accessRequires: "pantheon_a",
+                        desc: "Une vaste rotonde au plafond surélevé servait de lieu de rassemblement aux notables. Un autel de fortune, dressé sous les bannières du Conseil « libre », est couvert de bougies consumées et de symboles idéologiques.\n\nLes résidents restants venaient ici prier ou attendre des instructions qui ne sont jamais venues. Des traînées de sang séché partent du centre et remontent vers les conduits de ventilation. L'entrée du salon est grande ouverte.",
+                        lootGroups: LOOT_GROUPS.pantheon_sanctuary,
+                        reports: []
+                    },
+                    {
+                        id: "pantheon_f_burned",
+                        code: "ZONE E",
+                        parentZone: "pantheon_a",
+                        accessRequires: "pantheon_a",
+                        name: "Résidence Delacroix — appartement incendié",
+                        desc: "La porte, symbole du Conseil peint à la hâte, pend sur un seul gond. Le salon a été incendié : le faux parquet a gondolé, les canapés ne sont plus que des carcasses et les baies factices, fondues, affichent encore une image figée de Genève à travers la suie. Des traces de lutte mènent à la porte : les résidents ont tenté de repousser la foule avant de fuir.\n\nLe logement a été pillé avant d'être brûlé. Il ne reste rien d'utile.",
+                        lootGroups: LOOT_GROUPS.pantheon_empty,
+                        reports: []
+                    },
+                    {
+                        id: "pantheon_g_barricade",
+                        code: "ZONE F",
+                        parentZone: "pantheon_a",
+                        accessRequires: "pantheon_a",
+                        door: { name: "pantheon_barricade_door", difficulty: 1 },
+                        name: "Résidence Ashford — appartement barricadé",
+                        desc: "La porte est verrouillée de l'intérieur, doublée d'une armoire en bois véritable poussée contre le battant. Des griffures profondes marquent la peinture, preuve qu'on a tenté de la forcer. Le Conseil « libre » est peint en lettres rouges au-dessus du judas.",
+                        lootGroups: LOOT_GROUPS.pantheon_ashford,
+                        reports: []
+                    },
+//----------------------------------------------------------------------------
+// APPARTEMENT 1408 - PIECE SCELLEE (EASTER EGG) : voir SEALED_SUITES en haut du fichier
+//----------------------------------------------------------------------------
+                    {
+                        id: "pantheon_h_1408",
+                        code: "ZONE H",
+                        suite: "suite_1408",
+                        parentZone: "pantheon_a",
+                        accessRequires: "pantheon_a",
+                        name: "Appartement 1408 — La Suite Belle Époque : le Grand Salon",
+                        desc: "La porte est grande ouverte. Sur le seuil, l'air est curieusement plus doux, presque parfumé à la cire d'abeille et au vieux bois. Le numéro détonne dans ce couloir : comme si cette porte avait été remplacée ou réattribuée par le passé.\n\nDès que les joueurs franchissent l'entrée, ils ont 2 minutes pour entrer et sortir librement. Passé ce délai, la porte se referme d'un coup sec et ils ne peuvent plus retourner dans le couloir. Le panneau de contrôle extérieur clignote au rouge : « ERREUR SYSTÈME — ŒUVRE EN COURS ».\n\nLe choc visuel est total. La structure métallique de la station reste devinable par moments (un rivet apparent, une canalisation technique camouflée derrière une tapisserie), mais tout a été maquillé en somptueuse chambre de la Belle Époque : fastueux, magnifique, d'un luxe insolent et anachronique, entièrement corrompu par la mort.\n\nLe salon est un fumoir bourgeois aux moulures dorées factices, tapissé de velours pourpre lourd. Un tapis d'Orient étouffe les bruits de pas. Des fauteuils capitonnés entourent une table basse en acajou. Au centre trône un projecteur holographique dissimulé dans une vasque en laiton ciselé, couplé à un autel morbide fait de bougies consumées et de suie noire sur le tapis.\n\nÉLÉMENTS DU DÉCOR (NON EMPORTABLES) :\n- Le tableau holographique 3D diffuse en boucle des suicides et des mutilations d'une précision chirurgicale. Les victimes affichent une étrange lucidité résignée.\n- Des projections secondaires montrent un homme aux mouvements lents et nonchalants qui ramasse les corps pour les emporter vers les conduits.\n- Des candélabres en argent massif brûlent d'une flamme anormalement bleutée.\n\nUn badge maître est posé en évidence sur l'autel. Il est noirci par la suie, fissuré, sa puce est enrobée de cire : il ne déverrouillera rien tel quel. Le lecteur de la porte, à côté de l'entrée, attend d'être réparé.\n\nTENSION : tant que les holobandes tournent, rester dans la suite fait monter la Tension des personnages. Le MJ ne justifie rien.",
+                        lootGroups: LOOT_GROUPS.suite_salon,
+                        reports: [
+                            {
+                                id: "suite_plaque",
+                                code: "OBS-PAN-03",
+                                title: "La plaque de l'autel",
+                                author: "Observation des lieux",
+                                date: "Gravée dans le laiton de la vasque",
+                                text: "Une inscription en lettres anglaises est gravée sur le bord de la vasque :\n\n« DE LA BOUCHE À LA PEAU »\n\nQuatre pièces sont ainsi nommées en creux. Le lecteur de la porte, lui, réclame un code à quatre chiffres. Le MJ ne dit pas dans quel ordre les lire."
+                            },
+                            {
+                                id: "suite_lecteur",
+                                code: "OBS-PAN-04",
+                                title: "Le lecteur de la porte",
+                                author: "Écran de contrôle",
+                                date: "Après la fermeture",
+                                text: "[ERREUR 408 : PROTOCOLE D'ISOLATION ACTIVE]\n[ŒUVRE EN COURS — SORTIE SUSPENDUE]\n[REQUIERT : BADGE MAÎTRE, ÉTAT NOMINAL, CODE DE LA SUITE]\n\nUn rectangle de métal nu est encastré sous l'écran, là où l'on glisse le badge."
+                            },
+                            {
+                                id: "suite_panneau",
+                                code: "OBS-PAN-05",
+                                title: "Le panneau de la porte",
+                                author: "Observation des lieux",
+                                date: "En sortant de la suite",
+                                text: "En sortant, le panneau numérique de la porte n'affiche plus « 1408 » mais « Erreur système - Secteur non répertorié ».\n\nSi quelqu'un regardait par le judas de l'intérieur avant d'ouvrir, il ne verrait pas le couloir de la station, mais un vide infini ou un mur de briques froides."
+                            }
+                        ]
+                    },
+                    {
+                        id: "pantheon_h_kitchen",
+                        code: "ZONE H-2",
+                        suite: "suite_1408",
+                        parentZone: "pantheon_h_1408",
+                        accessRequires: "pantheon_h_1408",
+                        name: "Suite 1408 — La Cuisine (la Gourmandise brute)",
+                        desc: "Une double porte coulissante en bois précieux ouvre sur un garde-manger de grand domaine bourgeois. L'air y est lourd, écœurant, acidulé par la pourriture. Le mobilier en chêne ciré contraste avec la saleté organique ; les plans de travail en marbre blanc disparaissent sous les victuailles avariées. C'est la gourmandise compulsive et destructrice.\n\nÉLÉMENTS DU DÉCOR (NON EMPORTABLES) :\n- Des montagnes de denrées de luxe déballées, moisies, qui suintent sur le mobilier.\n- Un grand réfrigérateur de style rétro, grand ouvert sur des étagères désespérément vides.\n- Dans le bac à ordures en zinc, des flaques de vomi séché témoignent des excès et du rejet.\n\nSur la grande table, six couverts sont dressés. Un seul a servi.",
+                        lootGroups: LOOT_GROUPS.suite_kitchen,
+                        reports: [
+                            {
+                                id: "suite_kitchen_digit",
+                                code: "OBS-PAN-06",
+                                title: "La table dressée",
+                                author: "Observation des lieux",
+                                date: "Sur la nappe brodée",
+                                text: "Six couverts sont dressés autour de la table. Un seul a servi, et il porte la trace de dents. Le chiffre qui s'impose ici est le 6."
+                            }
+                        ]
+                    },
+                    {
+                        id: "pantheon_h_bedroom",
+                        code: "ZONE H-3",
+                        suite: "suite_1408",
+                        parentZone: "pantheon_h_1408",
+                        accessRequires: "pantheon_h_1408",
+                        name: "Suite 1408 — La Chambre à coucher (l'Immobilité totale)",
+                        desc: "Une suite nuptiale d'époque baignée de lumière feutrée et d'un silence absolu. C'est le paroxysme d'une vie aseptisée, rigide, figée dans un ordre parfait : le repos poussé à l'excès, l'immobilité de la vie figée avant la mort. Pas une once de poussière.\n\nÉLÉMENTS DU DÉCOR (NON EMPORTABLES) :\n- Le grand lit à baldaquin, aux rideaux de velours lourd, est bordé au cordeau, sans un pli sur les draps de soie blanche. Un seul oreiller porte l'empreinte creusée d'un visage, sans qu'aucun corps n'y repose.\n- Une commode ancienne en loupe d'orme porte un sablier géant dont le sable est totalement figé en haut.\n\nLa commode est à portée de main. Le sablier repose sur un socle d'horlogerie ancien. Le placard est dissimulé derrière les panneaux de boiserie, au fond de la pièce. Le boudoir ouvre sur la chambre.",
+                        lootGroups: LOOT_GROUPS.suite_bedroom,
+                        reports: [
+                            {
+                                id: "suite_bedroom_digit",
+                                code: "OBS-PAN-07",
+                                title: "L'oreiller creusé",
+                                author: "Observation des lieux",
+                                date: "Sur le lit",
+                                text: "Un seul oreiller est creusé, sur un lit fait pour deux. L'empreinte n'a pas bougé de toute la vie du lit. Le chiffre qui s'impose ici est le 1."
+                            }
+                        ]
+                    },
+                    {
+                        id: "pantheon_h_closet",
+                        code: "ZONE H-4",
+                        suite: "suite_1408",
+                        parentZone: "pantheon_h_bedroom",
+                        accessRequires: "pantheon_h_bedroom",
+                        name: "Suite 1408 — Le Placard (le Corps mis à nu)",
+                        desc: "Un grand placard mural aux portes entrouvertes, dissimulé derrière de superbes panneaux de boiserie sculptée. L'expression « avoir des squelettes dans son placard » y prend un sens littéral : c'est la mise à nu de quelqu'un qui a voulu nettoyer ses impuretés corporelles à outrance.\n\nÉLÉMENTS DU DÉCOR (NON EMPORTABLES) :\n- Un squelette humain complet, recroquevillé et parfaitement nettoyé de toute chair, repose sur une étagère parmi des cintres en bois vernis. Les os ont été astiqués au point de luire sous une faible lueur : l'œuvre minutieuse d'une propreté maladive imposée par autrui.",
+                        lootGroups: LOOT_GROUPS.suite_closet,
+                        reports: [
+                            {
+                                id: "suite_closet_digit",
+                                code: "OBS-PAN-08",
+                                title: "Les cintres de bois vernis",
+                                author: "Observation des lieux",
+                                date: "Sur la tringle",
+                                text: "Neuf cintres de bois vernis sont alignés sur la tringle. Le squelette occupe le dixième emplacement, qui manque à l'appel. Le chiffre qui s'impose ici est le 9."
+                            }
+                        ]
+                    },
+                    {
+                        id: "pantheon_h_bath",
+                        code: "ZONE H-5",
+                        suite: "suite_1408",
+                        parentZone: "pantheon_h_1408",
+                        accessRequires: "pantheon_h_1408",
+                        name: "Suite 1408 — La Salle de bain (le Bain acide)",
+                        desc: "Une salle de bain somptueuse, habillée de marbre vert et de robinetterie en cuivre étincelant. Un temple de la propreté dévoyé : la pièce sent le produit chimique lourd, le métal et la chloramine.\n\nÉLÉMENTS DU DÉCOR (NON EMPORTABLES) :\n- Une immense baignoire sur pieds en fonte émaillée, remplie d'un bouillon rouge sirupeux et fumant : un luxe d'eau chaude inouï pour une station spatiale en crise.\n- Les restes invisibles d'un suicide par immersion dans un bain acide qui a rongé lentement et méthodiquement la chair et les organes de la victime, transformant l'eau en résidu organique.",
+                        lootGroups: LOOT_GROUPS.suite_bath,
+                        reports: [
+                            {
+                                id: "suite_bath_digit",
+                                code: "OBS-PAN-09",
+                                title: "La robinetterie",
+                                author: "Observation des lieux",
+                                date: "Au bord de la baignoire",
+                                text: "Quatre robinets de cuivre sont ouverts à fond au-dessus de la baignoire. Un seul coule encore. Le chiffre qui s'impose ici est le 4."
+                            }
+                        ]
+                    },
+                    {
+                        id: "pantheon_h_boudoir",
+                        code: "ZONE H-6",
+                        suite: "suite_1408",
+                        parentZone: "pantheon_h_bedroom",
+                        accessRequires: "pantheon_h_bedroom",
+                        name: "Suite 1408 — Le Boudoir (l'Apparence brisée)",
+                        desc: "Adjacent à la chambre, un espace intime dédié au culte de l'image de soi : le reflet de la peur panique du vieillissement et du déclassement social de l'élite. Pour les riches du Panthéon, l'apparence était une armure ; ici, elle devient un piège narcissique.\n\nÉLÉMENTS DU DÉCOR (NON EMPORTABLES) :\n- Des miroirs anciens du sol au plafond, tous tachés, griffés ou recouverts d'une pellicule de sel et de cire, forment des phrases obsessionnelles tracées au doigt : « Toujours plus net », « On ne voit rien sous la peau ».\n- Au centre, une coiffeuse de style Empire. Sur la chaise, pas de corps, mais un masque mortuaire en résine transparente, moulé sur un visage qui porte les stigmates d'une chirurgie esthétique ratée.\n- Des dizaines de flacons de crèmes de luxe et de sérums de longévité, méthodiquement alignés, tous ouverts et périmés.",
+                        lootGroups: LOOT_GROUPS.suite_boudoir,
+                        reports: [
+                            {
+                                id: "suite_boudoir_mirror",
+                                code: "OBS-PAN-10",
+                                title: "Les phrases sur les miroirs",
+                                author: "Observation des lieux",
+                                date: "Tracées au doigt",
+                                text: "« Toujours plus net. »\n« On ne voit rien sous la peau. »\n\nSous la dernière phrase, quelqu'un a griffé quatre fois le verre, de haut en bas, comme on compte des jours. Le MJ ne dit pas de quoi."
+                            }
+                        ]
+                    },
+                    {
+                        id: "pantheon_e",
+                        code: "ZONE G",
+                        name: "Carrefour des résidences",
+                        parentZone: "pantheon_a",
+                        accessRequires: "pantheon_a",
+                        desc: "Le couloir débouche sur un carrefour circulaire qui relie les résidences, le salon commun et les ascenseurs de l'anneau central. Les portes de liaison ne sont ni verrouillées ni barricadées ; seuls les appartements disposent de leurs propres accès sécurisés.",
+                        lootGroups: [{ id: "main", title: "MATÉRIEL RÉCUPÉRABLE", items: [] }],
+                        reports: []
+                    }
+                ]
+            },
+//============================================================================
+// SECTEUR 05 - L'ANNEAU INTERMEDIAIRE : LES TERRASSES
+//============================================================================
+            terrasses: {
+                title: "SECTEUR 05 - L'ANNEAU INTERMÉDIAIRE : LES TERRASSES",
+                description: "L'air ici est plus sec, sentant la poussière de moquette et le renfermé. Autrefois, c'était le quartier résidentiel des fonctionnaires supérieurs, des commerçants prospères et des retraités aisés de la station.\n\nAujourd'hui, le silence y est lourd, seulement brisé par le bourdonnement lointain des conduits de ventilation. Les portes des appartements s'alignent le long d'un couloir de béton composite. Certaines sont grandes ouvertes, d'autres barricadées à la hâte. Des scellés de fortune et des écriteaux au feutre témoignent de la panique : « Zone sous surveillance du Conseil », « Ne frappez pas ».",
+                zones: [
+                    {
+                        id: "terr_a",
+                        code: "ZONE A",
+                        name: "Le Couloir des Portes Mitoyennes",
+                        desc: "Un long couloir qui s'incurve légèrement en suivant la forme de la station. Sur les murs, les affiches publicitaires pour des croisières stellaires ou des investissements sur la planète Terre sont lacérées. Au sol, des emballages de rations vides et quelques journaux de bord datés de la veille du confinement.\n\nUne odeur d'urine animale flotte discrètement près de la porte 402. Le couloir est libre d'accès ; les portes 402, 404, 406, 408 et 410 s'ouvrent sur lui.",
+                        lootGroups: LOOT_GROUPS.terr_corridor,
+                        reports: [
+                            {
+                                id: "terr_meal_note",
+                                code: "NOTE-TER-01",
+                                title: "Plateau de repas sur le palier",
+                                author: "Inconnu",
+                                date: "Il y a plusieurs semaines",
+                                text: "Sur le palier entre l'appartement 404 de William et le 402 de Mme Gonzales, quelqu'un a déposé un plateau de repas intact avec un mot griffonné à la main :\n\n« Pour Milliam. Ne reste pas seul. »\n\nLe mot a été écrit il y a des semaines. Le repas s'est momifié sur place, totalement ignoré."
+                            }
+                        ]
+                    },
+                    {
+                        id: "terr_b_gonzales",
+                        code: "ZONE B",
+                        name: "Appartement 402 — Chez Mme Gonzales (la commerçante retraitée)",
+                        parentZone: "terr_a",
+                        accessRequires: "terr_a",
+                        desc: "Une porte entrouverte. L'appartement est surchargé de bibelots de pacotille, de souvenirs ramenés de diverses colonies et de napperons en dentelle synthétique. L'intérieur est étrangement net, bien que le désordre règne.\n\nAssise dans un fauteuil à bascule face à une porte de placard qu'elle s'obstine à fixer, Mme Gonzales est terrifiée, un peu sénile, mais vivante. Elle râle à voix basse sur le manque de savoir-vivre des autres résidents : « Ces jeunes qui ne respectent rien, même pas le couvre-feu du Conseil ! »\n\nÀ ses pieds, son petit chien Kiki, un vieux roquet de compagnie, aboie frénétiquement en direction d'une bouche d'aération dès que quelqu'un approche.\n\nINTERACTION : si les joueurs la rassurent, Mme Gonzales peut lâcher des informations précieuses (ou être très pénible). Elle sait que William, dans l'appartement d'en face, a des provisions, et que Milliam est parti précipitamment un soir sans son manteau.",
+                        lootGroups: LOOT_GROUPS.terr_gonzales,
+                        reports: []
+                    },
+                    {
+                        id: "terr_c_william",
+                        code: "ZONE C",
+                        name: "Appartement 404 — Le Refuge de William (garde de la cité)",
+                        parentZone: "terr_a",
+                        accessRequires: "terr_a",
+                        door: { name: "terr_william_door", difficulty: 2 },
+                        desc: "La porte est verrouillée de l'intérieur, renforcée par une barre métallique transversale. Si les joueurs insistent ou se font reconnaître comme des humains non hostiles, une voix fatiguée mais ferme résonne à travers l'interphone :\n\n« Je ne bouge pas d'ici. Le Conseil a merdé, la station est foutue, mais moi j'ai de quoi tenir. Dégagez. »\n\nWilliam, garde de la cité, s'est retranché ici. Il a compris que sa hiérarchie l'avait abandonné. Il survit grâce à ses rations militaires stockées, mais la solitude commence à lui peser.\n\nINTERACTION : persuadé ou payé en nouvelles de l'extérieur ou en broutille, William peut entrouvrir la porte, donner des conseils de survie ou échanger du matériel. Son stock n'est accessible que par la négociation ou si un malheur lui arrive. Son arme de service est jalousement gardée : il ne la lâchera qu'à contrecœur.",
+                        lootGroups: LOOT_GROUPS.terr_william,
+                        reports: []
+                    },
+                    {
+                        id: "terr_d_milliam",
+                        code: "ZONE D",
+                        name: "Appartement 408 — Le Logis de Milliam",
+                        parentZone: "terr_a",
+                        accessRequires: "terr_a",
+                        desc: "Une porte fermée, mais déverrouillée. En entrant, l'atmosphère est glaciale.\n\nL'appartement est curieusement vide de toute présence humaine, mais Milliam n'est pas mort. On a l'impression qu'il est sorti faire une course rapide ou qu'il a dû fuir au beau milieu d'une action : le lit est défait, une tasse de café glacée et trouble repose sur la table, et ses effets importants (papiers d'identité, chaussures de marche principales) sont encore là. Pourtant, il ne semble plus habiter les lieux depuis un moment.\n\nSur la table de la cuisine, des messages incohérents ont été gravés au tournevis.",
+                        lootGroups: LOOT_GROUPS.terr_milliam,
+                        reports: [
+                            {
+                                id: "terr_milliam_list",
+                                code: "NOTE-TER-02",
+                                title: "Liste de noms rayés",
+                                author: "Milliam (gravé sur la table)",
+                                date: "Non daté",
+                                text: "Une liste de noms rayés, un à un. À la fin, gravé plus profondément que le reste :\n\n« Ils ne viennent pas nous chercher. Ils montent tous vers le Centre. »"
+                            }
+                        ]
+                    },
+                    {
+                        id: "terr_f_burned",
+                        code: "ZONE E",
+                        parentZone: "terr_a",
+                        accessRequires: "terr_a",
+                        name: "Appartement 406 — Le logement incendié",
+                        desc: "La porte, couverte d'un écriteau au feutre « Ne frappez pas », est noircie et entrouverte. L'intérieur a entièrement brûlé : un départ de feu dans la cuisine a gagné le salon, où des meubles avaient été entassés pour former une barricade. Les murs sont couverts de suie et les placards ont été pillés avant l'incendie. Il ne reste que des cendres.",
+                        lootGroups: LOOT_GROUPS.terr_empty,
+                        reports: []
+                    },
+                    {
+                        id: "terr_g_barricade",
+                        code: "ZONE F",
+                        parentZone: "terr_a",
+                        accessRequires: "terr_a",
+                        door: { name: "terr_410_door", difficulty: 1 },
+                        name: "Appartement 410 — Le logement barricadé",
+                        desc: "La porte est verrouillée de l'intérieur et renforcée par des planches clouées en croix. Un scellé de fortune du Conseil, collé à la hâte, porte la mention « Zone sous surveillance ». Aucun signe de vie.",
+                        lootGroups: LOOT_GROUPS.terr_410,
+                        reports: []
+                    }
+                ]
+            },
+//============================================================================
+// SECTEUR 06 - LA PERIPHERIE : LA LISIERE
+//============================================================================
+            lisiere: {
+                title: "SECTEUR 06 - LA PÉRIPHÉRIE : LA LISIÈRE",
+                description: "L'air y est nettement plus froid, lourd et vicié. On est tout au bord de la coque externe de la station : les cloisons vibrent en permanence du bourdonnement grave des réacteurs de stabilisation, et l'isolation phonique est quasi inexistante.\n\nLes couloirs sont étroits, les portes d'alvéoles s'alignent comme des casiers. Pas de luxe, pas de moquette : du métal brut riveté. Des câbles pendent lamentablement du plafond arraché. C'est la zone où la panique s'est transformée en chaos sanglant dès les premiers jours.\n\nEn inspectant le sol, on remarque que les traces de pas dans la poussière s'arrêtent net au milieu du couloir. Personne n'est revenu habiter ici. Les pillards eux-mêmes ont déserté la zone, probablement poussés plus bas ou plus haut par la faim... ou par ce qui rôde désormais dans les conduits.",
+                zones: [
+                    {
+                        id: "lis_corridor",
+                        code: "ZONE A",
+                        name: "Le Couloir des Alvéoles — couloir principal",
+                        desc: "Un long couloir étroit en métal riveté, qui s'incurve légèrement en suivant la courbe de la coque : on n'en voit jamais le bout. Les portes d'alvéoles s'alignent des deux côtés comme des casiers, certaines arrachées, d'autres noircies par le feu. Des câbles pendent du plafond arraché et des matelas, des chaises et des tôles ont été entassés contre les parois : des barricades abandonnées, forcées ou jamais utilisées.\n\nLe sol grillagé est couvert de traces sombres, de vêtements piétinés et de bocaux brisés. Les cloisons vibrent du grondement grave des réacteurs de stabilisation. Les traces de pas dans la poussière s'arrêtent net au milieu du couloir. L'accès au couloir est libre.",
+                        lootGroups: LOOT_GROUPS.lis_corridor,
+                        reports: []
+                    },
+                    {
+                        id: "lis_a",
+                        code: "ZONE B",
+                        parentZone: "lis_corridor",
+                        accessRequires: "lis_corridor",
+                        name: "Appartement 102 — Le pillage méthodique et la mort sans sommation",
+                        desc: "La porte coulissante est enfoncée, tordue sur son rail ; l'accès est libre. L'appartement est absolument vidé de fond en comble : placards ouverts, matelas lacérés à la recherche de cachettes, câbles muraux arrachés pour récupérer le cuivre.\n\nAu centre de la pièce principale, face à la porte, un corps gît sur le grillage métallique du sol. Un résident, abattu sommairement d'une balle de gros calibre dans le dos ou la nuque, en plein vol ou alors qu'il tentait de protéger ses derniers biens. Le sang a séché en une mare sombre sur les plaques.\n\nÀ côté de sa main tendue, un sac de toile vide, retourné, éventré d'un coup de couteau. Les pillards ont pris ce qui brillait ou ce qui se mangeait, et l'ont liquidé pour une broutille.",
+                        lootGroups: LOOT_GROUPS.lis_102,
+                        reports: [
+                            {
+                                id: "lis_102_casings",
+                                code: "OBS-LIS-01",
+                                title: "Douilles près du corps",
+                                author: "Observation des lieux",
+                                date: "Quelques jours après les émeutes",
+                                text: "Des douilles de pistolet de fabrication standard de la station gisent près du corps. Ce ne sont pas des monstres venus de l'extérieur qui l'ont tué, mais un autre résident ou un milicien armé pendant les émeutes."
+                            }
+                        ]
+                    },
+                    {
+                        id: "lis_b",
+                        code: "ZONE C",
+                        parentZone: "lis_corridor",
+                        accessRequires: "lis_corridor",
+                        name: "Appartement 104 — La rafle désespérée",
+                        desc: "Juste en face, la porte de cette alvéole est grande ouverte, battant doucement au rythme des courants d'air de la ventilation.\n\nIci aussi, tout a été pillé, sous un angle purement alimentaire et matériel : la cuisine miniature a été saccagée, les bocaux en verre sont brisés au sol et forment un tapis de tessons collants de confiture séchée et de poudre nutritive.\n\nLes habitants s'étaient barricadés avec tout ce qu'ils pouvaient (tables, casiers de rangement), mais la porte a fini par céder sous la force d'un groupe. Il ne reste strictement rien de valeur, pas même une miette.",
+                        lootGroups: LOOT_GROUPS.lis_104,
+                        reports: [
+                            {
+                                id: "lis_104_wall",
+                                code: "OBS-LIS-02",
+                                title: "Décompte au charbon de bois",
+                                author: "Habitant inconnu",
+                                date: "Quinze jours après le confinement",
+                                text: "Sur un pan de mur encore intact, quelqu'un a griffonné au charbon de bois un décompte de jours barrés un à un. Il s'arrête brusquement au quinzième jour, suivi d'un mot géant :\n\n« ILS NOUS ONT OUBLIÉS »"
+                            }
+                        ]
+                    },
+                    {
+                        id: "lis_d_note",
+                        code: "ZONE D",
+                        parentZone: "lis_corridor",
+                        accessRequires: "lis_corridor",
+                        name: "Appartement 106 — L'évacuation précipitée",
+                        desc: "La porte est ouverte et le logement a été vidé à la hâte, pas pillé : les tiroirs sont renversés, les valises ouvertes, un manteau d'enfant abandonné sur le seuil. Le lit est défait, mais la table est encore dressée.\n\nSur la table de la pièce principale, bien en vue, une feuille de papier a été posée sous un verre. Elle est impossible à manquer.",
+                        lootGroups: LOOT_GROUPS.lis_106,
+                        reports: [
+                            {
+                                id: "lis_106_note",
+                                code: "NOTE-LIS-03",
+                                title: "Note laissée sur la table",
+                                author: "Résident de l'appartement 106",
+                                date: "Quelques jours après le début des suicides",
+                                text: "« Les enfants de l'héritier ont trouvé une nouvelle voie. Les autres ne comprennent pas, mais ils m'ont ouvert les yeux. »"
+                            }
+                        ]
+                    },
+                    {
+                        id: "lis_e_burned",
+                        code: "ZONE E",
+                        parentZone: "lis_corridor",
+                        accessRequires: "lis_corridor",
+                        name: "Appartement 108 — L'alvéole incendiée",
+                        desc: "La porte a fondu dans son cadre. À l'intérieur, tout a brûlé : le mobilier n'est plus qu'un amas carbonisé, les cloisons sont noires de suie jusqu'au plafond et l'air sent le plastique fondu. Quelqu'un a mis le feu pour chasser ou effacer ce qui s'y trouvait. Il ne reste rien d'utilisable.",
+                        lootGroups: LOOT_GROUPS.lis_empty,
+                        reports: []
+                    },
+                    {
+                        id: "lis_f_barricade",
+                        code: "ZONE F",
+                        parentZone: "lis_corridor",
+                        accessRequires: "lis_corridor",
+                        door: { name: "lis_110_door", difficulty: 1 },
+                        name: "Appartement 110 — La barricade intacte",
+                        desc: "Seule porte du couloir encore debout. Elle est verrouillée de l'intérieur et renforcée par un casier de rangement poussé derrière le battant. Aucun bruit ne filtre, mais la poussière devant le seuil n'a pas été effleurée depuis des semaines.",
+                        lootGroups: LOOT_GROUPS.lis_110,
                         reports: []
                     }
                 ]

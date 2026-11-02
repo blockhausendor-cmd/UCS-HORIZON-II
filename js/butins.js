@@ -205,5 +205,208 @@
                         { item: "ballistic_vest", min: 1, max: 2 }
                     ]
                 }
+            ],
+            pantheon_panorama: [
+                {
+                    id: "main",
+                    title: "OBJETS ABANDONNÉS DANS LA GALERIE",
+                    items: [
+                        { item: "high_capacity_display_battery", min: 1, max: 1 },
+                        { item: "luxury_travel_bag", min: 1, max: 1 }
+                    ]
+                }
+            ],
+            pantheon_vane: [
+                {
+                    id: "main",
+                    title: "MATÉRIEL MÉDICAL DU DR. VANE",
+                    items: [
+                        { item: "field_surgery_kit", min: 1, max: 1 },
+                        { item: "rapid_coagulant_injection", min: 2, max: 2 }
+                    ]
+                }
+            ],
+            pantheon_vance: [
+                {
+                    id: "main",
+                    title: "OBJETS DU BAR",
+                    items: [
+                        { item: "synthetic_strong_spirit", min: 1, max: 1 }
+                    ]
+                }
+            ],
+            pantheon_vance_study: [
+                {
+                    id: "safe",
+                    title: "COFFRE MURAL — TEST DE PIRATAGE OU CLÉ DE VANCE",
+                    items: [
+                        { item: "vance_luxury_pistol", min: 1, max: 1 },
+                        { item: "station_physical_credits", min: 1, max: 1 }
+                    ]
+                }
+            ],
+            pantheon_sanctuary: [
+                {
+                    id: "main",
+                    title: "MATÉRIEL DU SANCTUAIRE",
+                    items: [
+                        { item: "emergency_first_aid_kit", min: 1, max: 1 },
+                        { item: "premium_food_ration", min: 2, max: 2 },
+                        { item: "council_emergency_radio", min: 1, max: 1 }
+                    ]
+                }
+            ],
+            terr_corridor: [
+                { id: "main", title: "MATÉRIEL RÉCUPÉRABLE", items: [] }
+            ],
+            terr_gonzales: [
+                {
+                    id: "main",
+                    title: "OBJETS DE MME GONZALES",
+                    items: [
+                        { item: "vintage_dry_biscuits", min: 1, max: 1 },
+                        { item: "eye_drops", min: 1, max: 1 }
+                    ]
+                }
+            ],
+            terr_william: [
+                {
+                    id: "main",
+                    title: "STOCK DE WILLIAM (NÉGOCIATION OU PILLAGE)",
+                    items: [
+                        { item: "council_survival_ration", min: 3, max: 3 },
+                        { item: "clean_water_flask", min: 1, max: 1 },
+                        { item: "c17_pistol", min: 1, max: 1 },
+                        { item: "c17_magazine", min: 1, max: 1 }
+                    ]
+                }
+            ],
+            terr_milliam: [
+                {
+                    id: "main",
+                    title: "AFFAIRES DE MILLIAM",
+                    items: [
+                        { item: "dynamo_flashlight", min: 1, max: 1 },
+                        { item: "thick_winter_jacket", min: 1, max: 1 }
+                    ]
+                }
+            ],
+            suite_salon: [
+                {
+                    id: "main",
+                    title: "L'AUTEL DU SALON",
+                    items: [
+                        { item: "suite_master_badge", min: 1, max: 1 }
+                    ]
+                }
+            ],
+            suite_kitchen: [
+                {
+                    id: "main",
+                    title: "TIROIRS DE LA CUISINE",
+                    items: [
+                        { item: "suite_silver_spoon", min: 1, max: 1 }
+                    ]
+                }
+            ],
+            suite_bedroom: [
+                {
+                    id: "main",
+                    title: "LA COMMODE ET LE SABLIER",
+                    items: [
+                        { item: "suite_clock_cell", min: 1, max: 1 }
+                    ]
+                }
+            ],
+            suite_closet: [
+                { id: "main", title: "MATÉRIEL RÉCUPÉRABLE", items: [] }
+            ],
+            suite_bath: [
+                {
+                    id: "main",
+                    title: "LA ROBINETTERIE",
+                    items: [
+                        { item: "suite_copper_wire", min: 1, max: 1 }
+                    ]
+                }
+            ],
+            suite_boudoir: [
+                {
+                    id: "main",
+                    title: "LA COIFFEUSE",
+                    items: [
+                        { item: "suite_longevity_serum", min: 1, max: 1 }
+                    ]
+                }
+            ],
+            pantheon_empty: [
+                { id: "main", title: "MATÉRIEL RÉCUPÉRABLE", items: [] }
+            ],
+            pantheon_ashford: [
+                {
+                    id: "main",
+                    title: "RÉSERVES DE LA RÉSIDENCE ASHFORD",
+                    items: [
+                        { item: "premium_food_ration", min: 1, max: 1 },
+                        { item: "clean_water_flask", min: 1, max: 1 }
+                    ]
+                }
+            ],
+            terr_empty: [
+                { id: "main", title: "MATÉRIEL RÉCUPÉRABLE", items: [] }
+            ],
+            terr_410: [
+                {
+                    id: "main",
+                    title: "RÉSERVES DU 410",
+                    items: [
+                        { item: "thermal_blanket", min: 1, max: 1 },
+                        { item: "vintage_dry_biscuits", min: 1, max: 1 }
+                    ]
+                }
+            ],
+            lis_corridor: [
+                {
+                    id: "main",
+                    title: "OBJETS ABANDONNÉS DANS LE COULOIR",
+                    items: [
+                        { item: "worn_battery_18v", min: 1, max: 1 }
+                    ]
+                }
+            ],
+            lis_106: [
+                { id: "main", title: "MATÉRIEL RÉCUPÉRABLE", items: [] }
+            ],
+            lis_empty: [
+                { id: "main", title: "MATÉRIEL RÉCUPÉRABLE", items: [] }
+            ],
+            lis_110: [
+                {
+                    id: "main",
+                    title: "RÉSERVES DU 110",
+                    items: [
+                        { item: "emergency_first_aid_kit", min: 1, max: 1 },
+                        { item: "half_eaten_food_ration", min: 1, max: 1 }
+                    ]
+                }
+            ],
+            lis_102: [
+                {
+                    id: "main",
+                    title: "OBJETS OUBLIÉS SOUS UN MEUBLE BASCULÉ",
+                    items: [
+                        { item: "emergency_ration_can", min: 1, max: 1 },
+                        { item: "torn_conduit_map", min: 1, max: 1 }
+                    ]
+                }
+            ],
+            lis_104: [
+                {
+                    id: "main",
+                    title: "MATÉRIEL RÉCUPÉRABLE",
+                    items: [
+                        { item: "rusty_kitchen_knife", min: 1, max: 1 }
+                    ]
+                }
             ]
         };

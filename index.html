@@ -288,7 +288,8 @@
             openedZones: {},
             inventories: {},
             inventoryOwners: {},
-            lootClaims: {}
+            lootClaims: {},
+            sealed: {}
         };
 
         let playerSession = null;
@@ -561,7 +562,8 @@
                 openedZones: currentState.openedZones,
                 inventories: currentState.inventories,
                 inventoryOwners: currentState.inventoryOwners,
-                lootClaims: currentState.lootClaims
+                lootClaims: currentState.lootClaims,
+                sealed: currentState.sealed || {}
             };
         }
 
@@ -597,6 +599,7 @@
             currentState.inventories = currentState.inventories || {};
             currentState.inventoryOwners = currentState.inventoryOwners || {};
             currentState.lootClaims = currentState.lootClaims || {};
+            currentState.sealed = currentState.sealed || {};
             renderSharedState();
             refreshInventoryViews();
         }
@@ -771,7 +774,7 @@
             const backup = (await sessionRef.parent.child(`backups/${slot}`).once('value')).val();
             if (!backup?.state) return;
             // Firebase supprime les objets vides : on les rétablit pour ne pas conserver l'état courant.
-            const emptyState = { unlockedLoot: {}, doorLevels: {}, doorRetryAt: {}, openedZones: {}, inventories: {}, inventoryOwners: {}, lootClaims: {} };
+            const emptyState = { unlockedLoot: {}, doorLevels: {}, doorRetryAt: {}, openedZones: {}, inventories: {}, inventoryOwners: {}, lootClaims: {}, sealed: {} };
             applySharedSnapshot({ ...emptyState, ...backup.state });
             publishGameState();
             getActionStatusElement().textContent = 'SAUVEGARDE RESTAURÉE.';
@@ -845,6 +848,172 @@
         function canModifyGame() {
             return playerSession?.role === 'master';
         }
+
+//============================================================================================
+// PIECES SCELLEES (SEALED_SUITES) : COMPTE A REBOURS, CONFINEMENT ET LECTEUR DE BADGE
+//============================================================================================
+        const SUITE_INSIDE_KEY = 'ucs-suite-inside';
+
+        function getSuiteState(suiteId) {
+            const suite = SEALED_SUITES[suiteId];
+            const saved = currentState.sealed?.[suiteId] || {};
+            const startedAt = Number(saved.startedAt) || 0;
+            const elapsedMs = startedAt ? Math.max(0, Date.now() - startedAt) : 0;
+            return {
+                suite,
+                progress: saved.progress || {},
+                startedAt,
+                opened: !!saved.opened,
+                elapsedMs,
+                timeUp: startedAt > 0 && elapsedMs >= suite.graceMs,
+                // Seul le MJ verrouille : le compte à rebours ne fait qu'avertir.
+                locked: !!saved.locked && !saved.opened
+            };
+        }
+
+        function getSuiteInside() {
+            try { return sessionStorage.getItem(SUITE_INSIDE_KEY); } catch (error) { return null; }
+        }
+
+        function setSuiteInside(suiteId) {
+            try {
+                if (suiteId) sessionStorage.setItem(SUITE_INSIDE_KEY, suiteId);
+                else sessionStorage.removeItem(SUITE_INSIDE_KEY);
+            } catch (error) { /* stockage indisponible : le confinement repose alors sur la vue courante */ }
+        }
+
+        function getZoneSuiteId(globalKey, zoneId) {
+            return DATA_ZONES[globalKey]?.zones.find(zone => zone.id === zoneId)?.suite || null;
+        }
+
+        // Identifiant de la pièce scellée dont le joueur ne peut plus sortir, sinon null. Le MJ n'est jamais confiné.
+        function getConfinedSuite() {
+            if (canModifyGame()) return null;
+            const suiteId = getSuiteInside();
+            return suiteId && SEALED_SUITES[suiteId] && getSuiteState(suiteId).locked ? suiteId : null;
+        }
+
+        function redirectToConfinedSuite(suiteId, sync, message) {
+            if (sync) alert(message);
+            openSubZone(SEALED_SUITES[suiteId].sector, SEALED_SUITES[suiteId].entryZone, sync);
+        }
+
+        // Affiche le temps restant avant l'échéance, puis le temps écoulé au-delà (« +MM:SS »).
+        function formatSuiteCountdown(state) {
+            const diff = state.suite.graceMs - state.elapsedMs;
+            const totalSeconds = Math.ceil(Math.abs(diff) / 1000);
+            return `${diff < 0 ? '+' : ''}${String(Math.floor(totalSeconds / 60)).padStart(2, '0')}:${String(totalSeconds % 60).padStart(2, '0')}`;
+        }
+
+        // Le premier joueur qui franchit le seuil lance le compte à rebours (appliqué par le navigateur du MJ).
+        function startSuiteCountdown(suiteId) {
+            if (!canModifyGame() || !SEALED_SUITES[suiteId]) return false;
+            currentState.sealed = currentState.sealed || {};
+            const saved = currentState.sealed[suiteId] || {};
+            if (saved.startedAt || saved.opened) return false;
+            currentState.sealed[suiteId] = { ...saved, startedAt: Date.now() };
+            return true;
+        }
+
+        function lockSuite(suiteId) {
+            if (!canModifyGame() || !SEALED_SUITES[suiteId]) return;
+            currentState.sealed = currentState.sealed || {};
+            currentState.sealed[suiteId] = { ...(currentState.sealed[suiteId] || {}), locked: true };
+            openSubZone(currentState.currentGlobalKey, currentState.currentZoneId);
+        }
+
+        function notifySuiteEntry(suiteId) {
+            if (getSuiteState(suiteId).startedAt || !inventoryOpsRef || !playerSession) return;
+            inventoryOpsRef.push({ type: 'suite_enter', suiteId, playerUid: playerSession.uid, createdAt: firebase.database.ServerValue.TIMESTAMP });
+        }
+
+        function resetSuite(suiteId) {
+            if (!canModifyGame() || !SEALED_SUITES[suiteId]) return;
+            if (!confirm('Réinitialiser le compte à rebours et la progression du lecteur ? Les objets déjà consommés ne sont pas rendus.')) return;
+            delete currentState.sealed[suiteId];
+            openSubZone(currentState.currentGlobalKey, currentState.currentZoneId);
+        }
+
+        // Applique une action du lecteur de badge ; lève une erreur sans rien modifier si elle est invalide.
+        function applySuiteAction(action) {
+            const suite = SEALED_SUITES[action.suiteId];
+            if (!suite) throw new Error('Pièce scellée inconnue.');
+            currentState.sealed = currentState.sealed || {};
+            const saved = currentState.sealed[action.suiteId] || {};
+            const progress = { ...(saved.progress || {}) };
+            if (saved.opened) throw new Error('La porte est déjà déverrouillée.');
+            const inventory = currentState.inventories[action.playerUid] || [];
+            const findItem = catalogId => {
+                const index = inventory.findIndex(item => item.catalogId === catalogId);
+                if (index < 0) throw new Error(`Le joueur ne possède pas : ${LOOT_CATALOG[catalogId].name}.`);
+                return index;
+            };
+
+            if (action.targetType === 'suite_step') {
+                const step = suite.steps.find(candidate => candidate.id === action.stepId);
+                if (!step) throw new Error('Étape inconnue.');
+                if (progress[step.id]) throw new Error('Cette étape est déjà accomplie.');
+                const index = findItem(step.item);
+                currentState.inventories[action.playerUid] = inventory.filter((item, itemIndex) => itemIndex !== index);
+                progress[step.id] = true;
+            } else if (action.targetType === 'suite_code') {
+                if (action.code !== suite.code) throw new Error('Code incorrect.');
+                progress.code = true;
+            } else if (action.targetType === 'suite_open') {
+                if (!suite.steps.every(step => progress[step.id]) || !progress.code) throw new Error('Le badge n’est pas encore prêt.');
+                findItem(suite.badgeItem);
+                // Les objets de la suite ne servent qu'à en sortir : ils disparaissent avec le déverrouillage.
+                Object.keys(currentState.inventories).forEach(uid => {
+                    currentState.inventories[uid] = (currentState.inventories[uid] || []).filter(item => !String(item.catalogId || '').startsWith('suite_'));
+                });
+                saved.opened = true;
+            } else {
+                throw new Error('Type d’action non reconnu.');
+            }
+            currentState.sealed[action.suiteId] = { ...saved, progress };
+        }
+
+        function requestSuiteAction(kind, suiteId, stepId = '') {
+            if (!playerSession || !SEALED_SUITES[suiteId]) return;
+            const suite = SEALED_SUITES[suiteId];
+            const details = { suiteId, stepId };
+            let label = 'BADGE SUR LE LECTEUR';
+            if (kind === 'suite_step') {
+                label = suite.steps.find(step => step.id === stepId)?.label || stepId;
+            } else if (kind === 'suite_code') {
+                const code = (document.getElementById('suite-code-input')?.value || '').trim();
+                if (!/^\d{4}$/.test(code)) {
+                    getActionStatusElement().textContent = 'LE CODE DOIT COMPTER QUATRE CHIFFRES.';
+                    return;
+                }
+                details.code = code;
+                label = `SAISIE DU CODE ${code}`;
+            }
+            if (canModifyGame()) {
+                try {
+                    applySuiteAction({ targetType: kind, ...details, playerUid: playerSession.uid, playerName: playerSession.pseudo });
+                    openSubZone(currentState.currentGlobalKey, currentState.currentZoneId);
+                    refreshInventoryViews();
+                    getActionStatusElement().textContent = `${label} : ACCEPTÉ.`;
+                } catch (error) {
+                    getActionStatusElement().textContent = `${label} : REFUSÉ (${error.message})`;
+                }
+                return;
+            }
+            submitAction(kind, suiteId, null, label, 0, details);
+        }
+
+        function tickSuiteCountdowns() {
+            document.querySelectorAll('[data-suite-countdown]').forEach(element => {
+                const state = getSuiteState(element.dataset.suiteCountdown);
+                if (state.locked || state.opened || String(state.timeUp) !== element.dataset.timeUp) {
+                    renderSharedState();
+                    return;
+                }
+                element.textContent = formatSuiteCountdown(state);
+            });
+        }
+        setInterval(tickSuiteCountdowns, 1000);
 
         function getLootGroupKey(zoneId, groupId) {
             return groupId === 'main' ? zoneId : `${zoneId}:${groupId}`;
@@ -939,6 +1108,11 @@
             const catalogId = getLootCatalogId(pickup.loot);
             const catalogItem = catalogId ? LOOT_CATALOG[catalogId] : null;
             const content = catalogItem?.content;
+            const initialMagazineId = catalogItem?.weapon?.initialMagazine;
+            const initialMagazine = initialMagazineId ? LOOT_CATALOG[initialMagazineId] : null;
+            if (initialMagazineId && (!initialMagazine?.ammo?.magazine || !initialMagazine.content)) {
+                throw new Error(`Le chargeur initial ${initialMagazineId} est absent ou invalide dans le catalogue.`);
+            }
             const inventoryItem = {
                 id: actionId,
                 name: getLootItemName(pickup.loot),
@@ -950,6 +1124,13 @@
                     current: isAmmoBoxLoot(pickup.loot) ? getLootAmmoCount(pickup.loot, pickup.lootLevel) : content.capacity,
                     capacity: content.capacity,
                     unit: content.unit
+                } } : {}),
+                ...(initialMagazineId ? { magazine: {
+                    name: initialMagazine.name,
+                    catalogId: initialMagazineId,
+                    current: initialMagazine.content.capacity,
+                    capacity: initialMagazine.content.capacity,
+                    unit: initialMagazine.content.unit
                 } } : {})
             };
             const playerInventory = currentState.inventories[action.playerUid] || [];
@@ -1020,7 +1201,7 @@
 
         function settleLamp(lamp, now = Date.now()) {
             if (!lamp.lit) return;
-            const rate = LOOT_CATALOG[lamp.catalogId]?.lamp?.drainPerMinute || 1;
+            const rate = LOOT_CATALOG[lamp.catalogId]?.lamp?.drainPerMinute ?? 1;
             const elapsedMinutes = Math.max(0, now - (lamp.litSince || now)) / 60000;
             lamp.content.current = Math.max(0, lamp.content.current - elapsedMinutes * rate);
             lamp.litSince = now;
@@ -1706,6 +1887,13 @@
             const op = snapshot.val();
             snapshot.ref.remove();
             if (!op || !canModifyGame()) return;
+            if (op.type === 'suite_enter') {
+                if (SEALED_SUITES[op.suiteId] && startSuiteCountdown(op.suiteId)) {
+                    publishGameState();
+                    if (getZoneSuiteId(currentState.currentGlobalKey, currentState.currentZoneId) === op.suiteId) renderSharedState();
+                }
+                return;
+            }
             if (op.type === 'recharge' && !isNativeRecharge(currentState.inventories[op.playerUid] || [], op)) return;
             try {
                 applyInventoryOp(currentState.inventories, op);
@@ -1976,7 +2164,9 @@
                     ? `OUVERTURE DU BUTIN - NIVEAU ${action.level}/5`
                     : action.targetType === 'recharge'
                         ? `RECHARGE DE LAMPE (COMTECH)`
-                        : `PRISE DE BUTIN - ${action.targetLabel}`;
+                        : action.targetType.startsWith('suite_')
+                            ? `LECTEUR DE LA SUITE - ${action.targetLabel}`
+                            : `PRISE DE BUTIN - ${action.targetLabel}`;
             element.textContent = action.status === 'pending'
                 ? `ACTION EN ATTENTE DE VALIDATION DU MJ : ${actionLabel}`
                 : action.status === 'approved'
@@ -1999,7 +2189,8 @@
                     ? 'FORCAGE DE PORTE'
                     : action.targetType === 'loot'
                         ? 'OUVERTURE DU BUTIN'
-                        : action.targetType === 'recharge' ? 'TEST DE COMTECH : RECHARGE D’APPAREIL' : 'PRISE D’OBJET';
+                        : action.targetType === 'recharge' ? 'TEST DE COMTECH : RECHARGE D’APPAREIL'
+                            : action.targetType.startsWith('suite_') ? 'LECTEUR DE BADGE (PIÈCE SCELLÉE)' : 'PRISE D’OBJET';
                 const pickupSource = action.targetType === 'loot_pickup'
                     ? getLootSource(action.globalKey, action.zoneId, action.groupId, action.itemIndex)
                     : null;
@@ -2017,7 +2208,9 @@
                     ...(action.targetType === 'loot_pickup' ? [
                         `Quantité : ${action.quantity}`,
                         ...(pickupContent ? [`Contenu à l’acquisition : ${pickupAmount}/${pickupContent.capacity} ${pickupContent.unit}`] : [])
-                    ] : action.targetType === 'recharge' ? [] : [`Niveau proposé : ${action.level}/5`])
+                    ] : action.targetType === 'recharge' ? [] : action.targetType.startsWith('suite_')
+                        ? (action.targetType === 'suite_code' ? [`Code proposé : ${action.code} (attendu : ${SEALED_SUITES[action.suiteId]?.code})`] : [])
+                        : [`Niveau proposé : ${action.level}/5`])
                 ];
                 const card = createInventoryElement('div', 'amber-border p-3');
                 card.appendChild(createInventoryElement('div', 'text-base text-amber-100 whitespace-pre-line', lines.join('\n')));
@@ -2051,6 +2244,8 @@
                     otherId: action.otherId,
                     playerUid: action.playerUid
                 });
+            } else if (action.targetType === 'suite_step' || action.targetType === 'suite_code' || action.targetType === 'suite_open') {
+                applySuiteAction(action);
             } else {
                 throw new Error('Type d’action non reconnu.');
             }
@@ -2386,6 +2581,12 @@
 //1. ÉCRAN D'ACCUEIL DE LA CONSOLE DE STATION SPATIALE
 //============================================================================================
         function showHomeScreen(sync = true) {
+            const confinedSuite = getConfinedSuite();
+            if (confinedSuite) {
+                redirectToConfinedSuite(confinedSuite, sync, 'LA PORTE EST VERROUILLÉE : IMPOSSIBLE DE QUITTER LA SUITE.');
+                return;
+            }
+            setSuiteInside(null);
             currentState = {
                 view: 'home',
                 currentGlobalKey: null,
@@ -2399,7 +2600,8 @@
                 openedZones: currentState.openedZones,
                 inventories: currentState.inventories || {},
                 inventoryOwners: currentState.inventoryOwners || {},
-                lootClaims: currentState.lootClaims || {}
+                lootClaims: currentState.lootClaims || {},
+                sealed: currentState.sealed || {}
             };
             publishPlayerView();
             
@@ -2443,15 +2645,20 @@
                             <span class="group-hover:translate-x-2 transition-transform">ENTRER &rarr;</span>
                         </button>
 
-                      <button onclick="openGlobalZone('nom_de_la_cle_zone')" class="w-full btn-retro p-4 text-2xl md:text-3xl font-bold flex justify-between items-center rounded-lg group">
-                         <span>[2] SECTEUR : NOM DU SECTEUR</span>
+                      <button onclick="openGlobalZone('pantheon')" class="w-full btn-retro p-4 text-2xl md:text-3xl font-bold flex justify-between items-center rounded-lg group">
+                         <span>[4] SECTEUR : LE PANTHÉON</span>
                         <span class="group-hover:translate-x-2 transition-transform">ENTRER &rarr;</span>
                         </button>
 
-                      <button onclick="openGlobalZone('nom_de_la_cle_zone')" class="w-full btn-retro p-4 text-2xl md:text-3xl font-bold flex justify-between items-center rounded-lg group">
-                         <span>[2] SECTEUR : NOM DU SECTEUR</span>
+                      <button onclick="openGlobalZone('terrasses')" class="w-full btn-retro p-4 text-2xl md:text-3xl font-bold flex justify-between items-center rounded-lg group">
+                         <span>[5] SECTEUR : LES TERRASSES</span>
                         <span class="group-hover:translate-x-2 transition-transform">ENTRER &rarr;</span>
-                        </button>                        
+                        </button>
+
+                      <button onclick="openGlobalZone('lisiere')" class="w-full btn-retro p-4 text-2xl md:text-3xl font-bold flex justify-between items-center rounded-lg group">
+                         <span>[6] SECTEUR : LA LISIÈRE</span>
+                        <span class="group-hover:translate-x-2 transition-transform">ENTRER &rarr;</span>
+                        </button>
                         
 
                     </div>
@@ -2468,6 +2675,12 @@
 // 2. DEFINITION DE L'ÉCRAN SECTEUR GLOBAL
 //============================================================================================
         function openGlobalZone(zoneKey, sync = true) {
+            const confinedSuite = getConfinedSuite();
+            if (confinedSuite) {
+                redirectToConfinedSuite(confinedSuite, sync, 'LA PORTE EST VERROUILLÉE : IMPOSSIBLE DE RETOURNER DANS LE COULOIR.');
+                return;
+            }
+            setSuiteInside(null);
             currentState.view = 'global_zone';
             currentState.currentGlobalKey = zoneKey;
             currentState.currentZoneId = null;
@@ -2519,6 +2732,25 @@
 // 3. DEFINITION DE L'ÉCRAN DÉTAIL D'UNE SOUS-ZONE
 //============================================================================================
         function openSubZone(globalKey, subZoneId, sync = true) {
+            const targetSuiteId = getZoneSuiteId(globalKey, subZoneId);
+            const confinedSuite = getConfinedSuite();
+            if (confinedSuite && targetSuiteId !== confinedSuite) {
+                redirectToConfinedSuite(confinedSuite, sync, 'LA PORTE EST VERROUILLÉE : IMPOSSIBLE DE RETOURNER DANS LE COULOIR.');
+                return;
+            }
+            if (targetSuiteId && !canModifyGame()) {
+                const wasInside = getSuiteInside() === targetSuiteId
+                    || getZoneSuiteId(currentState.currentGlobalKey, currentState.currentZoneId) === targetSuiteId;
+                if (getSuiteState(targetSuiteId).locked && !wasInside) {
+                    if (sync) alert('LA PORTE EST VERROUILLÉE : ERREUR SYSTÈME — ŒUVRE EN COURS.');
+                    openGlobalZone(globalKey, false);
+                    return;
+                }
+                setSuiteInside(targetSuiteId);
+                if (sync) notifySuiteEntry(targetSuiteId);
+            } else if (!targetSuiteId) {
+                setSuiteInside(null);
+            }
             currentState.view = 'zone_detail';
             currentState.currentGlobalKey = globalKey;
             currentState.currentZoneId = subZoneId;
@@ -2733,6 +2965,79 @@
             const doorSectionHTML = door ? renderDoorPanel(door) : '';
 
 //============================================================================================
+// PANNEAU DE PIECE SCELLEE : COMPTE A REBOURS ET LECTEUR DE BADGE
+//============================================================================================
+            const renderSuitePanel = () => {
+                const state = getSuiteState(zone.suite);
+                const suite = state.suite;
+                const master = canModifyGame();
+                const statusHTML = state.opened
+                    ? '<p class="text-amber-200 text-xl">PORTE DÉVERROUILLÉE : le couloir est de nouveau accessible.</p>'
+                    : state.locked
+                        ? '<p class="text-red-400 text-xl font-bold">PORTE VERROUILLÉE — ERREUR SYSTÈME : ŒUVRE EN COURS. Impossible de retourner dans le couloir.</p>'
+                        : '<p class="text-amber-200 text-xl">PORTE OUVERTE : le couloir est accessible.</p>';
+                // Note réservée au MJ : le chronomètre n'enferme personne, c'est lui qui décide.
+                const masterNoteHTML = master && !state.opened && !state.locked
+                    ? (state.startedAt
+                        ? `<p class="${state.timeUp ? 'text-red-300' : 'text-amber-300'} text-lg mt-3">
+                            <span data-suite-countdown="${zone.suite}" data-time-up="${state.timeUp}" class="font-bold text-2xl">${formatSuiteCountdown(state)}</span><br>
+                            ${state.timeUp
+                                ? 'Il est temps de les enfermer et de voir comment ils vont s’en sortir. Un joueur de plus pour entrer ? Mais ne sois pas trop gourmand : regarde-les rire et paniquer.'
+                                : 'Attends encore un peu avant de les enfermer. Plus il y a de fous, plus tu vas rire.'}
+                        </p>`
+                        : '<p class="text-amber-500 text-lg mt-3">Le compte à rebours de 2 minutes démarre automatiquement quand le premier joueur franchit le seuil.</p>')
+                    : '';
+                const masterHTML = master && !state.opened ? `
+                    <div class="flex flex-wrap gap-3 mt-3">
+                        ${state.locked ? '' : `<button type="button" onclick="lockSuite('${zone.suite}')" class="btn-retro px-4 py-2 text-lg font-bold rounded">VERROUILLER LA PORTE (ENFERMER LES JOUEURS)</button>`}
+                        <button type="button" onclick="resetSuite('${zone.suite}')" class="btn-retro px-4 py-2 text-lg font-bold rounded">RÉINITIALISER LA SUITE</button>
+                    </div>` : '';
+
+                let readerHTML = '';
+                if (zone.id === suite.entryZone && !state.opened) {
+                    const stepsHTML = suite.steps.map(step => `
+                        <li class="flex flex-wrap items-center justify-between gap-2">
+                            <span class="${state.progress[step.id] ? 'text-amber-500' : 'text-amber-200'}">${state.progress[step.id] ? '[✔]' : '[ ]'} ${step.label}</span>
+                            ${state.progress[step.id]
+                                ? '<span class="text-sm text-amber-600">FAIT</span>'
+                                : `<button type="button" onclick="requestSuiteAction('suite_step', '${zone.suite}', '${step.id}')" class="btn-retro px-3 py-1 text-base rounded">${master ? 'UTILISER L’OBJET' : 'DEMANDER AU MJ'}</button>`}
+                        </li>`).join('');
+                    const allStepsDone = suite.steps.every(step => state.progress[step.id]) && state.progress.code;
+                    readerHTML = `
+                        <div class="mt-4 border-t border-amber-700 pt-3">
+                            <h3 class="text-xl font-bold text-amber-300 mb-2">LECTEUR DE BADGE — RESTAURATION DU BADGE MAÎTRE</h3>
+                            <p class="text-amber-400 text-lg mb-2">Chaque étape consomme un objet trouvé dans la suite. Le joueur doit l'avoir dans son inventaire.</p>
+                            <ul class="text-xl space-y-2">
+                                ${stepsHTML}
+                                <li class="flex flex-wrap items-center justify-between gap-2">
+                                    <span class="${state.progress.code ? 'text-amber-500' : 'text-amber-200'}">${state.progress.code ? '[✔]' : '[ ]'} CODIFIER LA PISTE (4 chiffres)</span>
+                                    ${state.progress.code
+                                        ? '<span class="text-sm text-amber-600">FAIT</span>'
+                                        : `<span class="flex items-center gap-2">
+                                            <input id="suite-code-input" type="text" inputmode="numeric" maxlength="4" class="w-24 px-2 py-1 bg-black border border-amber-500 text-amber-100 text-xl rounded" placeholder="0000">
+                                            <button type="button" onclick="requestSuiteAction('suite_code', '${zone.suite}')" class="btn-retro px-3 py-1 text-base rounded">${master ? 'SAISIR' : 'DEMANDER AU MJ'}</button>
+                                        </span>`}
+                                </li>
+                            </ul>
+                            <button type="button" ${allStepsDone ? '' : 'disabled'} onclick="requestSuiteAction('suite_open', '${zone.suite}')" class="btn-retro w-full mt-4 py-2 text-xl font-bold rounded ${allStepsDone ? '' : 'opacity-50 cursor-not-allowed'}">
+                                GLISSER LE BADGE DANS LE LECTEUR
+                            </button>
+                        </div>`;
+                }
+
+                return `
+                    <div class="amber-border ${state.locked ? 'amber-border-glow' : ''} bg-black p-4 rounded-lg">
+                        <div class="text-amber-500 mb-2 text-lg">${suite.title} — PIÈCE SCELLÉE</div>
+                        ${statusHTML}
+                        ${masterNoteHTML}
+                        ${masterHTML}
+                        ${readerHTML}
+                    </div>`;
+            };
+
+            const suiteSectionHTML = zone.suite ? renderSuitePanel() : '';
+
+//============================================================================================
 // ASSEMBLAGE DES PANNEAUX DE LA ZONE
 //============================================================================================
             let lootSectionHTML = '';
@@ -2794,6 +3099,7 @@
                     </div>
 
                     ${doorSectionHTML}
+                    ${suiteSectionHTML}
 
                     <div>
                         <h2 class="text-2xl font-bold text-amber-400 mb-3 border-b border-amber-600 pb-1">
@@ -3040,7 +3346,16 @@
             if (currentState.view === 'report_detail') {
                 openSubZone(currentState.currentGlobalKey, currentState.currentZoneId);
             } else if (currentState.view === 'zone_detail') {
-                openGlobalZone(currentState.currentGlobalKey);
+                const currentZone = DATA_ZONES[currentState.currentGlobalKey]?.zones.find(zone => zone.id === currentState.currentZoneId);
+                const parentZone = currentZone?.parentZone
+                    ? DATA_ZONES[currentState.currentGlobalKey].zones.find(zone => zone.id === currentZone.parentZone)
+                    : null;
+                // Dans une pièce scellée, « retour » mène à la pièce parente ; seul le salon d'entrée donne sur le couloir.
+                if (currentZone?.suite && parentZone?.suite === currentZone.suite) {
+                    openSubZone(currentState.currentGlobalKey, parentZone.id);
+                } else {
+                    openGlobalZone(currentState.currentGlobalKey);
+                }
             } else if (currentState.view === 'global_zone') {
                 showHomeScreen();
             }

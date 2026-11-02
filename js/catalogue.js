@@ -391,6 +391,124 @@
             bloodstained_access_badge: {
                 name: "Badge d'accès ensanglanté",
                 description: "Pass de sécurité niveau 1 abandonné près d'un sas verrouillé."
+            },
+            high_capacity_display_battery: {
+                name: "Batterie haute capacité",
+                description: "Bloc d'alimentation haute capacité extirpé d'un écran mural. Encore chargé, mais encombrant.",
+                content: { capacity: 100, unit: "%" },
+                recharger: true,
+                batteryTags: ["18V"]
+            },
+            luxury_travel_bag: {
+                name: "Sac de voyage de luxe",
+                description: "Sac de voyage à compartiments renforcés. Permet de transporter deux objets supplémentaires."
+            },
+            field_surgery_kit: {
+                name: "Kit de chirurgie de terrain",
+                description: "Trousse compacte d'instruments de haute précision, stérilisés et conçus pour les interventions hors bloc."
+            },
+            rapid_coagulant_injection: {
+                name: "Injection de coagulant rapide",
+                description: "Dose médicale d'urgence conçue pour stopper immédiatement un saignement grave."
+            },
+            synthetic_strong_spirit: {
+                name: "Alcool fort de synthèse",
+                description: "Spiritueux concentré pouvant servir de désinfectant puissant ou d'ingrédient pour un cocktail Molotov."
+            },
+            vance_luxury_pistol: {
+                name: "Arme de poing de luxe Vance",
+                description: "Arme de poing civile de finition haut de gamme, entretenue avec soin et compatible avec son chargeur dédié de cinq cartouches.",
+                hands: 1,
+                tags: ["arme", "arme_a_feu", "civil"],
+                slots: ["lampe"],
+                weapon: {
+                    magazine: "vance_pistol_magazine",
+                    initialMagazine: "vance_pistol_magazine",
+                    caliber: "cal3",
+                    useAmount: 1,
+                    useLabel: "Tirer (1 cartouche)"
+                }
+            },
+            vance_pistol_magazine: {
+                name: "Chargeur de luxe Vance",
+                description: "Chargeur dédié à l'arme de poing de luxe Vance, contenant cinq cartouches Cal.3.",
+                content: { capacity: 5, unit: "cartouches" },
+                ammo: { caliber: "cal3", magazine: true }
+            },
+            station_physical_credits: {
+                name: "Liasse de crédits physiques de la station",
+                description: "Crédits imprimés sur des plaquettes métalliques, désormais inutiles pour survivre mais chargés de valeur symbolique."
+            },
+            emergency_first_aid_kit: {
+                name: "Trousse de secours d'urgence",
+                description: "Trousse complète de premiers secours avec compresses, antiseptique, bandes et matériel de stabilisation."
+            },
+            premium_food_ration: {
+                name: "Ration alimentaire de haute qualité",
+                description: "Repas de synthèse riche et énergétique, suffisamment nourrissant pour aider à récupérer de la santé et à rétablir la tension."
+            },
+            council_emergency_radio: {
+                name: "Radio portable longue portée",
+                description: "Radio réglée sur la fréquence d'urgence du Conseil. Elle ne capte plus que des parasites rythmiques."
+            },
+            emergency_ration_can: {
+                name: "Boîte de conserve de rations d'urgence",
+                description: "Conserve de rations d'urgence oubliée sous un meuble basculé, encore scellée."
+            },
+            torn_conduit_map: {
+                name: "Bout de carte déchiré",
+                description: "Fragment de plan montrant l'accès vers les conduits techniques inférieurs."
+            },
+            rusty_kitchen_knife: {
+                name: "Couteau de cuisine rouillé",
+                description: "Couteau de cuisine très abîmé, utilisable comme arme blanche d'appoint au corps à corps."
+            },
+            clean_water_flask: {
+                name: "Gourde d'eau potable",
+                description: "Gourde réutilisable contenant de l'eau potable filtrée."
+            },
+            vintage_dry_biscuits: {
+                name: "Boîte de biscuits secs d'époque",
+                description: "Biscuits secs d'avant la station, encore croquants. Un petit réconfort qui aide à retrouver un peu de moral (-1 Tension)."
+            },
+            eye_drops: {
+                name: "Flacon de gouttes pour les yeux",
+                description: "Collyre ordinaire. Projeté dans les yeux d'un adversaire, il peut servir de liquide irritant de fortune."
+            },
+            council_survival_ration: {
+                name: "Ration de survie étanche du Conseil",
+                description: "Ration militaire scellée, conçue pour tenir longtemps sans réfrigération."
+            },
+            dynamo_flashlight: {
+                name: "Lampe de poche dynamo",
+                description: "Lampe à manivelle qui ne nécessite aucune pile : sa charge ne s'épuise pas.",
+                content: { capacity: 100, unit: "%" },
+                hands: 1,
+                lamp: { drainPerMinute: 0 }
+            },
+            thick_winter_jacket: {
+                name: "Veste d'hiver épaisse",
+                description: "Veste matelassée très chaude, utile dans les zones froides de la station."
+            },
+            suite_master_badge: {
+                name: "Badge Maître (1408)",
+                description: "Badge noirci par la suie, boîtier fissuré, puce enrobée de cire. Il ne fonctionne que dans la suite 1408 et il faut le réparer pour qu'il soit lu."
+            },
+            suite_silver_spoon: {
+                name: "Petite cuillère en argent massif",
+                description: "Lourde, ternie, froide. Elle peut servir de levier pour ouvrir un boîtier. Ne sort pas de la suite 1408."
+            },
+            suite_longevity_serum: {
+                name: "Sérum de longévité périmé",
+                description: "Flacon de cristal au liquide jaunâtre. Il dissout la cire et la suie. Ne sort pas de la suite 1408."
+            },
+            suite_copper_wire: {
+                name: "Fil de cuivre ciselé",
+                description: "Un morceau de robinetterie dévissé, fin comme un cheveu. Il conduit le courant. Ne sort pas de la suite 1408."
+            },
+            suite_clock_cell: {
+                name: "Cellule d'horlogerie",
+                description: "Petite pile ronde arrachée au socle du sablier. Elle garde un peu de charge. Ne sort pas de la suite 1408."
             }
         };
 //============================================================================================
