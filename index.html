@@ -2674,6 +2674,11 @@
 //============================================================================================
 // 2. DEFINITION DE L'ÉCRAN SECTEUR GLOBAL
 //============================================================================================
+        // Un couloir (hub) est toujours ouvert : ses portes sont visibles dès l'entrée dans le secteur.
+        function isZoneOpened(globalData, zoneId) {
+            return !!currentState.openedZones[zoneId] || !!globalData.zones.find(z => z.id === zoneId)?.hub;
+        }
+
         function openGlobalZone(zoneKey, sync = true) {
             const confinedSuite = getConfinedSuite();
             if (confinedSuite) {
@@ -2693,7 +2698,7 @@
             const screen = document.getElementById('terminal-screen');
 
             let zonesListHTML = '';
-            const visibleZones = globalData.zones.filter(z => !z.parentZone || currentState.openedZones[z.parentZone]);
+            const visibleZones = globalData.zones.filter(z => !z.parentZone || isZoneOpened(globalData, z.parentZone));
             visibleZones.forEach((z) => {
                 zonesListHTML += `
                     <div class="amber-border p-4 bg-amber-950 bg-opacity-20 rounded-lg flex flex-col justify-between hover:border-amber-400 transition-colors">
@@ -2763,7 +2768,7 @@
             const zone = globalData.zones.find(z => z.id === subZoneId);
             const door = zone.door ? getDoorDefinition(zone.door) : null;
 
-            if (zone.accessRequires && !currentState.openedZones[zone.accessRequires]) {
+            if (zone.accessRequires && !isZoneOpened(globalData, zone.accessRequires)) {
                 openGlobalZone(globalKey);
                 alert('ACCES REFUSE : LA ZONE A DOIT ETRE OUVERTE AVANT LES ZONES C A F.');
                 return;

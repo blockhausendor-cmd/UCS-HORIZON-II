@@ -458,6 +458,7 @@ Et j'ai la certitude glaçante que`,
                 zones: [
                     {
                         id: "pantheon_a",
+                        hub: true,
                         code: "ZONE A",
                         name: "La Galerie des Panoramas — couloir principal",
                         desc: "Le couloir est large et moquetté, tout en longueur, avec une légère courbe qui suit la forme de l'anneau. Il est bordé d'écrans muraux géants. Certains affichent encore un sous-bois verdoyant ou un coucher de soleil sur l'océan terrestre, régulièrement coupés par du grésillement statique.\n\nDe grands conteneurs de voyage en matériaux nobles jonchent le passage. Un panneau dynamique diffuse en boucle un message d'urgence du Conseil, désormais muet. À droite, un panneau mural factice arraché laisse voir des câbles sous tension qui étincellent faiblement et projettent des ombres étirées.\n\nLes portes qui donnent sur ce couloir sont ouvertes. Des valises abandonnées et des symboles du Conseil « libre », peints à la hâte sur plusieurs portes, témoignent de la panique. Au fond de la courbe, la porte 1408 est grande ouverte, et l'air qui s'en échappe sent la cire d'abeille.",
@@ -714,6 +715,7 @@ Et j'ai la certitude glaçante que`,
                 zones: [
                     {
                         id: "terr_a",
+                        hub: true,
                         code: "ZONE A",
                         name: "Le Couloir des Portes Mitoyennes",
                         desc: "Un long couloir qui s'incurve légèrement en suivant la forme de la station. Sur les murs, les affiches publicitaires pour des croisières stellaires ou des investissements sur la planète Terre sont lacérées. Au sol, des emballages de rations vides et quelques journaux de bord datés de la veille du confinement.\n\nUne odeur d'urine animale flotte discrètement près de la porte 402. Le couloir est libre d'accès ; les portes 402, 404, 406, 408 et 410 s'ouvrent sur lui.",
@@ -801,6 +803,7 @@ Et j'ai la certitude glaçante que`,
                 zones: [
                     {
                         id: "lis_corridor",
+                        hub: true,
                         code: "ZONE A",
                         name: "Le Couloir des Alvéoles — couloir principal",
                         desc: "Un long couloir étroit en métal riveté, qui s'incurve légèrement en suivant la courbe de la coque : on n'en voit jamais le bout. Les portes d'alvéoles s'alignent des deux côtés comme des casiers, certaines arrachées, d'autres noircies par le feu. Des câbles pendent du plafond arraché et des matelas, des chaises et des tôles ont été entassés contre les parois : des barricades abandonnées, forcées ou jamais utilisées.\n\nLe sol grillagé est couvert de traces sombres, de vêtements piétinés et de bocaux brisés. Les cloisons vibrent du grondement grave des réacteurs de stabilisation. Les traces de pas dans la poussière s'arrêtent net au milieu du couloir. L'accès au couloir est libre.",
